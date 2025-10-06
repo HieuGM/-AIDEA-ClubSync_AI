@@ -1,0 +1,199 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-8 col-lg-6">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">
+                        <i class="bi bi-plus-circle"></i> Đặt phòng mới
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <form method="POST" id="bookingForm">
+                        {{ form.hidden_tag() }}
+                        
+                        <div class="mb-3">
+                            {{ form.title.label(class="form-label") }}
+                            {{ form.title(class="form-control" + (" is-invalid" if form.title.errors else "")) }}
+                            {% for error in form.title.errors %}
+                                <div class="invalid-feedback">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                        
+                        <div class="mb-3">
+                            {{ form.description.label(class="form-label") }}
+                            {{ form.description(class="form-control", rows="3") }}
+                            {% for error in form.description.errors %}
+                                <div class="invalid-feedback">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                        
+                        <div class="mb-3">
+                            {{ form.room_id.label(class="form-label") }}
+                            {{ form.room_id(class="form-select" + (" is-invalid" if form.room_id.errors else ""), id="roomSelect") }}
+                            {% for error in form.room_id.errors %}
+                                <div class="invalid-feedback">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    {{ form.start_time.label(class="form-label") }}
+                                    {{ form.start_time(class="form-control" + (" is-invalid" if form.start_time.errors else ""), id="startTime") }}
+                                    {% for error in form.start_time.errors %}
+                                        <div class="invalid-feedback">{{ error }}</div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    {{ form.end_time.label(class="form-label") }}
+                                    {{ form.end_time(class="form-control" + (" is-invalid" if form.end_time.errors else ""), id="endTime") }}
+                                    {% for error in form.end_time.errors %}
+                                        <div class="invalid-feedback">{{ error }}</div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Availability check result -->
+                        <div id="availabilityCheck" style="display: none;">
+                            <!-- Results will be shown here -->
+                        </div>
+                        
+                        <div class="d-grid gap-2">
+                            <button type="button" class="btn btn-outline-primary" id="checkAvailability">
+                                <i class="bi bi-search"></i> Kiểm tra phòng trống
+                            </button>
+                            {{ form.submit(class="btn btn-primary") }}
+                        </div>
+                    </form>
+                </div>
+            </div>
+            
+            <!-- Room Information -->
+            <div class="row mt-4">
+                <div class="col-md-6">
+                    <div class="card border-primary">
+                        <div class="card-header bg-primary text-white">
+                            <h6 class="mb-0">Phòng Lớn</h6>
+                        </div>
+                        <div class="card-body">
+                            <p><strong>Sức chứa:</strong> 30 người</p>
+                            <p><strong>Thiết bị:</strong> Projector, Whiteboard</p>
+                            <p class="text-muted mb-0">Phù hợp cho họp lớn, presentation</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card border-success">
+                        <div class="card-header bg-success text-white">
+                            <h6 class="mb-0">Phòng Nhỏ</h6>
+                        </div>
+                        <div class="card-body">
+                            <p><strong>Sức chứa:</strong> 15 người</p>
+                            <p><strong>Thiết bị:</strong> TV Screen, Whiteboard</p>
+                            <p class="text-muted mb-0">Phù hợp cho họp nhóm, thảo luận</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const roomSelect = document.getElementById('roomSelect');
+    const startTime = document.getElementById('startTime');
+    const endTime = document.getElementById('endTime');
+    const checkBtn = document.getElementById('checkAvailability');
+    const availabilityDiv = document.getElementById('availabilityCheck');
+    
+    // Set default times if date parameter is provided
+    const urlParams = new URLSearchParams(window.location.search);
+    const selectedDate = urlParams.get('date');
+    if (selectedDate) {
+        const now = new Date();
+        const nextHour = new Date(selectedDate + 'T' + String(now.getHours() + 1).padStart(2, '0') + ':00');
+        const hourAfter = new Date(nextHour.getTime() + 60 * 60 * 1000);
+        
+        startTime.value = nextHour.toISOString().slice(0, 16);
+        endTime.value = hourAfter.toISOString().slice(0, 16);
+    }
+    
+    // Check availability
+    checkBtn.addEventListener('click', function() {
+        if (!roomSelect.value || !startTime.value || !endTime.value) {
+            alert('Vui lòng chọn đầy đủ phòng và thời gian!');
+            return;
+        }
+        
+        const params = new URLSearchParams({
+            room_id: roomSelect.value,
+            start: new Date(startTime.value).toISOString(),
+            end: new Date(endTime.value).toISOString()
+        });
+        
+        fetch(`{{ url_for("api.check_availability") }}?${params}`)
+            .then(response => response.json())
+            .then(data => {
+                availabilityDiv.style.display = 'block';
+                
+                if (data.available) {
+                    availabilityDiv.innerHTML = `
+                        <div class="alert alert-success">
+                            <i class="bi bi-check-circle"></i>
+                            <strong>Tuyệt vời!</strong> Phòng này còn trống trong thời gian bạn chọn.
+                        </div>
+                    `;
+                } else {
+                    const conflictsList = data.conflicts.map(conflict => `
+                        <li>${conflict.title} (${new Date(conflict.start).toLocaleString('vi-VN')} - ${new Date(conflict.end).toLocaleString('vi-VN')})</li>
+                    `).join('');
+                    
+                    availabilityDiv.innerHTML = `
+                        <div class="alert alert-warning">
+                            <i class="bi bi-exclamation-triangle"></i>
+                            <strong>Phòng đã được đặt!</strong> Có ${data.conflicts.length} lịch trùng:
+                            <ul class="mt-2 mb-0">${conflictsList}</ul>
+                        </div>
+                    `;
+                }
+            })
+            .catch(error => {
+                console.error('Error checking availability:', error);
+                availabilityDiv.innerHTML = `
+                    <div class="alert alert-danger">
+                        <i class="bi bi-exclamation-circle"></i>
+                        Có lỗi xảy ra khi kiểm tra phòng trống!
+                    </div>
+                `;
+                availabilityDiv.style.display = 'block';
+            });
+    });
+    
+    // Auto-check when time changes
+    startTime.addEventListener('change', function() {
+        if (endTime.value && new Date(endTime.value) <= new Date(startTime.value)) {
+            const newEndTime = new Date(new Date(startTime.value).getTime() + 60 * 60 * 1000);
+            endTime.value = newEndTime.toISOString().slice(0, 16);
+        }
+        availabilityDiv.style.display = 'none';
+    });
+    
+    endTime.addEventListener('change', function() {
+        availabilityDiv.style.display = 'none';
+    });
+    
+    roomSelect.addEventListener('change', function() {
+        availabilityDiv.style.display = 'none';
+    });
+});
+</script>
+{% endblock %}

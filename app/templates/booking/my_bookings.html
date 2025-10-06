@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <div class="row">
+        <div class="col-12">
+            <h2><i class="bi bi-list-ul"></i> Lịch đặt phòng của tôi</h2>
+            <p class="text-muted">Quản lý các lịch đặt phòng của bạn</p>
+        </div>
+    </div>
+    
+    {% if bookings %}
+    <div class="row">
+        {% for booking in bookings %}
+        <div class="col-md-6 col-lg-4 mb-4">
+            <div class="card h-100 {% if booking.status == 'cancelled' %}border-danger{% else %}border-success{% endif %}">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0">{{ booking.title }}</h6>
+                    <span class="badge {% if booking.status == 'confirmed' %}bg-success{% elif booking.status == 'cancelled' %}bg-danger{% else %}bg-warning{% endif %}">
+                        {% if booking.status == 'confirmed' %}Đã xác nhận{% elif booking.status == 'cancelled' %}Đã hủy{% else %}Chờ xác nhận{% endif %}
+                    </span>
+                </div>
+                <div class="card-body">
+                    <div class="mb-2">
+                        <i class="bi bi-building text-primary"></i>
+                        <strong>Phòng:</strong> {{ booking.room.name }}
+                    </div>
+                    <div class="mb-2">
+                        <i class="bi bi-calendar text-info"></i>
+                        <strong>Ngày:</strong> {{ booking.start_time.strftime('%d/%m/%Y') }}
+                    </div>
+                    <div class="mb-2">
+                        <i class="bi bi-clock text-warning"></i>
+                        <strong>Thời gian:</strong> {{ booking.start_time.strftime('%H:%M') }} - {{ booking.end_time.strftime('%H:%M') }}
+                    </div>
+                    {% if booking.description %}
+                    <div class="mb-2">
+                        <i class="bi bi-file-text text-muted"></i>
+                        <strong>Mô tả:</strong> {{ booking.description }}
+                    </div>
+                    {% endif %}
+                    <div class="mb-2">
+                        <i class="bi bi-person text-secondary"></i>
+                        <strong>Người đặt:</strong> {{ booking.user.username }}
+                        <span class="badge bg-secondary">{{ booking.user.club }}</span>
+                    </div>
+                </div>
+                <div class="card-footer">
+                    {% if booking.status == 'confirmed' and booking.start_time > now %}
+                    <a href="{{ url_for('booking.cancel', booking_id=booking.id) }}" 
+                       class="btn btn-outline-danger btn-sm"
+                       onclick="return confirm('Bạn có chắc muốn hủy lịch này?')">
+                        <i class="bi bi-x-circle"></i> Hủy lịch
+                    </a>
+                    {% endif %}
+                    <small class="text-muted">
+                        Đặt lúc: {{ booking.created_at.strftime('%d/%m/%Y %H:%M') }}
+                    </small>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="row">
+        <div class="col-12">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body text-center py-5">
+                    <i class="bi bi-calendar-x text-muted" style="font-size: 4rem;"></i>
+                    <h4 class="mt-3 text-muted">Chưa có lịch đặt phòng nào</h4>
+                    <p class="text-muted">Bắt đầu đặt phòng để quản lý lịch trình của bạn</p>
+                    <a href="{{ url_for('booking.create') }}" class="btn btn-primary">
+                        <i class="bi bi-plus-circle"></i> Đặt phòng ngay
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-center gap-2">
+                <a href="{{ url_for('booking.create') }}" class="btn btn-primary">
+                    <i class="bi bi-plus-circle"></i> Đặt phòng mới
+                </a>
+                <a href="{{ url_for('main.calendar') }}" class="btn btn-outline-primary">
+                    <i class="bi bi-calendar"></i> Xem lịch tổng thể
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

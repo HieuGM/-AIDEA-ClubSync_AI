@@ -1,0 +1,187 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <!-- Hero Section -->
+    <div class="row py-5">
+        <div class="col-lg-8 mx-auto text-center">
+            <h1 class="display-4 text-primary mb-4">
+                <i class="bi bi-calendar-check"></i> ClubSync.AI
+            </h1>
+            <p class="lead text-muted mb-4">
+                Hệ thống quản lý phòng họp thông minh cho cộng đồng S2B
+            </p>
+            {% if not current_user.is_authenticated %}
+            <div class="d-grid gap-2 d-md-flex justify-content-md-center">
+                <a href="{{ url_for('auth.register') }}" class="btn btn-primary btn-lg me-md-2">
+                    <i class="bi bi-person-plus"></i> Đăng ký ngay
+                </a>
+                <a href="{{ url_for('auth.login') }}" class="btn btn-outline-primary btn-lg">
+                    <i class="bi bi-box-arrow-in-right"></i> Đăng nhập
+                </a>
+            </div>
+            {% else %}
+            <div class="d-grid gap-2 d-md-flex justify-content-md-center">
+                <a href="{{ url_for('main.calendar') }}" class="btn btn-primary btn-lg me-md-2">
+                    <i class="bi bi-calendar"></i> Xem lịch
+                </a>
+                <a href="{{ url_for('booking.create') }}" class="btn btn-success btn-lg">
+                    <i class="bi bi-plus-circle"></i> Đặt phòng
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Features Section -->
+    <div class="row py-5">
+        <div class="col-12">
+            <h2 class="text-center mb-5">Tính năng chính</h2>
+        </div>
+        
+        <div class="col-md-6 col-lg-3 mb-4">
+            <div class="card h-100 border-0 shadow-sm">
+                <div class="card-body text-center">
+                    <div class="feature-icon text-primary mb-3">
+                        <i class="bi bi-calendar3" style="font-size: 3rem;"></i>
+                    </div>
+                    <h5 class="card-title">Lịch trực quan</h5>
+                    <p class="card-text text-muted">
+                        Giao diện lịch giống Google Calendar, dễ sử dụng và trực quan
+                    </p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-6 col-lg-3 mb-4">
+            <div class="card h-100 border-0 shadow-sm">
+                <div class="card-body text-center">
+                    <div class="feature-icon text-success mb-3">
+                        <i class="bi bi-door-open" style="font-size: 3rem;"></i>
+                    </div>
+                    <h5 class="card-title">Quản lý phòng</h5>
+                    <p class="card-text text-muted">
+                        2 phòng họp: Phòng lớn (30 người) và Phòng nhỏ (15 người)
+                    </p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-6 col-lg-3 mb-4">
+            <div class="card h-100 border-0 shadow-sm">
+                <div class="card-body text-center">
+                    <div class="feature-icon text-info mb-3">
+                        <i class="bi bi-people" style="font-size: 3rem;"></i>
+                    </div>
+                    <h5 class="card-title">Đa CLB</h5>
+                    <p class="card-text text-muted">
+                        Hỗ trợ 3 CLB: Pro, Multi, GCC với màu sắc phân biệt
+                    </p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-6 col-lg-3 mb-4">
+            <div class="card h-100 border-0 shadow-sm">
+                <div class="card-body text-center">
+                    <div class="feature-icon text-warning mb-3">
+                        <i class="bi bi-clock" style="font-size: 3rem;"></i>
+                    </div>
+                    <h5 class="card-title">Quản lý thời gian</h5>
+                    <p class="card-text text-muted">
+                        Đánh dấu thời gian bận và thống kê sử dụng phòng
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Room Info Section -->
+    <div class="row py-5 bg-light rounded">
+        <div class="col-12">
+            <h2 class="text-center mb-5">Thông tin phòng họp</h2>
+        </div>
+        
+        <div class="col-md-6 mb-4">
+            <div class="card border-primary">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">
+                        <i class="bi bi-building"></i> Phòng Lớn
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-3">
+                        <i class="bi bi-people-fill text-primary me-2"></i>
+                        <span><strong>Sức chứa:</strong> 30 người</span>
+                    </div>
+                    <div class="d-flex align-items-center mb-3">
+                        <i class="bi bi-gear-fill text-primary me-2"></i>
+                        <span><strong>Trang thiết bị:</strong> Projector, Whiteboard, Air-con</span>
+                    </div>
+                    <div class="d-flex align-items-center">
+                        <i class="bi bi-check-circle-fill text-success me-2"></i>
+                        <span>Phù hợp cho họp lớn, presentation, workshop</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-6 mb-4">
+            <div class="card border-success">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">
+                        <i class="bi bi-building"></i> Phòng Nhỏ
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-3">
+                        <i class="bi bi-people-fill text-success me-2"></i>
+                        <span><strong>Sức chứa:</strong> 15 người</span>
+                    </div>
+                    <div class="d-flex align-items-center mb-3">
+                        <i class="bi bi-gear-fill text-success me-2"></i>
+                        <span><strong>Trang thiết bị:</strong> TV Screen, Whiteboard, Air-con</span>
+                    </div>
+                    <div class="d-flex align-items-center">
+                        <i class="bi bi-check-circle-fill text-success me-2"></i>
+                        <span>Phù hợp cho họp nhóm, thảo luận, brainstorm</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% if current_user.is_authenticated %}
+    <!-- Quick Actions -->
+    <div class="row py-5">
+        <div class="col-12">
+            <h2 class="text-center mb-5">Thao tác nhanh</h2>
+        </div>
+        
+        <div class="col-md-4 mb-3">
+            <div class="d-grid">
+                <a href="{{ url_for('booking.create') }}" class="btn btn-primary btn-lg">
+                    <i class="bi bi-plus-circle"></i> Đặt phòng mới
+                </a>
+            </div>
+        </div>
+        
+        <div class="col-md-4 mb-3">
+            <div class="d-grid">
+                <a href="{{ url_for('main.calendar') }}" class="btn btn-info btn-lg">
+                    <i class="bi bi-calendar"></i> Xem lịch
+                </a>
+            </div>
+        </div>
+        
+        <div class="col-md-4 mb-3">
+            <div class="d-grid">
+                <a href="{{ url_for('booking.my_bookings') }}" class="btn btn-success btn-lg">
+                    <i class="bi bi-list-ul"></i> Lịch của tôi
+                </a>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

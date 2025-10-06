@@ -1,0 +1,360 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h2><i class="bi bi-speedometer2"></i> Dashboard</h2>
+                    <p class="text-muted">Chào mừng {{ current_user.username }} từ CLB {{ current_user.club }}!</p>
+                </div>
+                <div class="text-end">
+                    {% if current_user.club == 'Pro' %}
+                        <div class="badge bg-danger fs-6">CLB {{ current_user.club }}</div>
+                    {% elif current_user.club == 'Multi' %}
+                        <div class="badge bg-info fs-6">CLB {{ current_user.club }}</div>
+                    {% else %}
+                        <div class="badge bg-primary fs-6">CLB {{ current_user.club }}</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Quick Stats -->
+    <div class="row mb-4">
+        <div class="col-md-3 mb-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4 id="totalBookings">0</h4>
+                            <p class="mb-0">Tổng lịch đặt</p>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="bi bi-calendar-check" style="font-size: 2rem;"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3 mb-3">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4 id="upcomingBookings">0</h4>
+                            <p class="mb-0">Lịch sắp tới</p>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="bi bi-clock" style="font-size: 2rem;"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3 mb-3">
+            <div class="card bg-info text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4>2</h4>
+                            <p class="mb-0">Phòng khả dụng</p>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="bi bi-door-open" style="font-size: 2rem;"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3 mb-3">
+            <div class="card bg-warning text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4 id="busyHours">0</h4>
+                            <p class="mb-0">Giờ bận/tuần</p>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="bi bi-hourglass-split" style="font-size: 2rem;"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Charts Row -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Thống kê đặt phòng theo CLB</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="clubStatsChart" height="300"></canvas>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Sử dụng phòng</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="roomUtilizationChart" height="300"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Recent Bookings -->
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Lịch gần đây</h5>
+                    <a href="{{ url_for('booking.my_bookings') }}" class="btn btn-sm btn-outline-primary">
+                        Xem tất cả
+                    </a>
+                </div>
+                <div class="card-body" id="recentBookings">
+                    <div class="text-center">
+                        <div class="loading"></div>
+                        <p class="text-muted mt-2">Đang tải...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Thao tác nhanh</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <a href="{{ url_for('booking.create') }}" class="btn btn-primary">
+                            <i class="bi bi-plus-circle"></i> Đặt phòng mới
+                        </a>
+                        <a href="{{ url_for('main.calendar') }}" class="btn btn-outline-primary">
+                            <i class="bi bi-calendar"></i> Xem lịch
+                        </a>
+                        <a href="{{ url_for('main.availability') }}" class="btn btn-outline-secondary">
+                            <i class="bi bi-clock"></i> Cập nhật thời gian bận
+                        </a>
+                    </div>
+                    
+                    <hr>
+                    
+                    <h6>Trạng thái phòng hôm nay</h6>
+                    <div id="roomStatus">
+                        <div class="text-center">
+                            <div class="loading"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Load dashboard data
+    loadDashboardStats();
+    loadRecentBookings();
+    loadRoomStatus();
+    
+    function loadDashboardStats() {
+        // Load stats from API
+        fetch('{{ url_for("api.get_stats") }}')
+            .then(response => response.json())
+            .then(data => {
+                updateStatsCharts(data);
+            })
+            .catch(error => console.error('Error loading stats:', error));
+        
+        // Load user's booking count
+        fetch('{{ url_for("api.get_my_events") }}')
+            .then(response => response.json())
+            .then(events => {
+                document.getElementById('totalBookings').textContent = events.length;
+                
+                const now = new Date();
+                const upcoming = events.filter(event => new Date(event.start) > now);
+                document.getElementById('upcomingBookings').textContent = upcoming.length;
+            });
+        
+        // Load user availability
+        fetch('{{ url_for("api.user_availability") }}')
+            .then(response => response.json())
+            .then(availability => {
+                const busyHours = availability.filter(av => av.is_busy)
+                    .reduce((total, av) => total + (av.end_hour - av.start_hour), 0);
+                document.getElementById('busyHours').textContent = busyHours;
+            });
+    }
+    
+    function loadRecentBookings() {
+        fetch('{{ url_for("api.get_my_events") }}')
+            .then(response => response.json())
+            .then(events => {
+                const recentEvents = events
+                    .sort((a, b) => new Date(b.start) - new Date(a.start))
+                    .slice(0, 5);
+                
+                const container = document.getElementById('recentBookings');
+                
+                if (recentEvents.length === 0) {
+                    container.innerHTML = `
+                        <div class="text-center text-muted">
+                            <i class="bi bi-calendar-x" style="font-size: 2rem;"></i>
+                            <p class="mt-2">Chưa có lịch đặt phòng nào</p>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                container.innerHTML = recentEvents.map(event => `
+                    <div class="d-flex align-items-center mb-3 p-2 rounded border">
+                        <div class="me-3">
+                            <div class="badge" style="background-color: ${event.backgroundColor};">
+                                ${event.extendedProps.club}
+                            </div>
+                        </div>
+                        <div class="flex-grow-1">
+                            <h6 class="mb-1">${event.title}</h6>
+                            <small class="text-muted">
+                                ${new Date(event.start).toLocaleDateString('vi-VN')} 
+                                ${new Date(event.start).toLocaleTimeString('vi-VN', {hour: '2-digit', minute: '2-digit'})}
+                                - ${new Date(event.end).toLocaleTimeString('vi-VN', {hour: '2-digit', minute: '2-digit'})}
+                            </small>
+                        </div>
+                        <div>
+                            <span class="badge bg-light text-dark">${event.extendedProps.room}</span>
+                        </div>
+                    </div>
+                `).join('');
+            })
+            .catch(error => {
+                console.error('Error loading recent bookings:', error);
+                document.getElementById('recentBookings').innerHTML = `
+                    <div class="alert alert-danger">
+                        <i class="bi bi-exclamation-circle"></i>
+                        Không thể tải lịch gần đây
+                    </div>
+                `;
+            });
+    }
+    
+    function loadRoomStatus() {
+        // Get today's events to show room status
+        fetch('{{ url_for("api.get_events") }}')
+            .then(response => response.json())
+            .then(events => {
+                const today = new Date().toDateString();
+                const todayEvents = events.filter(event => 
+                    new Date(event.start).toDateString() === today
+                );
+                
+                const roomContainer = document.getElementById('roomStatus');
+                const rooms = ['Phòng Lớn', 'Phòng Nhỏ'];
+                
+                roomContainer.innerHTML = rooms.map(roomName => {
+                    const roomEvents = todayEvents.filter(event => 
+                        event.extendedProps.room === roomName
+                    );
+                    
+                    return `
+                        <div class="mb-2">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span class="fw-bold">${roomName}</span>
+                                <span class="badge ${roomEvents.length > 0 ? 'bg-warning' : 'bg-success'}">
+                                    ${roomEvents.length > 0 ? `${roomEvents.length} lịch` : 'Trống'}
+                                </span>
+                            </div>
+                            ${roomEvents.length > 0 ? `
+                                <div class="mt-1">
+                                    ${roomEvents.map(event => `
+                                        <small class="text-muted d-block">
+                                            ${new Date(event.start).toLocaleTimeString('vi-VN', {hour: '2-digit', minute: '2-digit'})}
+                                            - ${event.title}
+                                        </small>
+                                    `).join('')}
+                                </div>
+                            ` : ''}
+                        </div>
+                    `;
+                }).join('');
+            })
+            .catch(error => {
+                console.error('Error loading room status:', error);
+                document.getElementById('roomStatus').innerHTML = `
+                    <div class="text-danger">
+                        <i class="bi bi-exclamation-circle"></i>
+                        Không thể tải trạng thái phòng
+                    </div>
+                `;
+            });
+    }
+    
+    function updateStatsCharts(data) {
+        // Club Stats Chart
+        const clubCtx = document.getElementById('clubStatsChart').getContext('2d');
+        new Chart(clubCtx, {
+            type: 'doughnut',
+            data: {
+                labels: Object.keys(data.club_bookings || {}),
+                datasets: [{
+                    data: Object.values(data.club_bookings || {}),
+                    backgroundColor: ['#FF6B6B', '#4ECDC4', '#45B7D1'],
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom'
+                    }
+                }
+            }
+        });
+        
+        // Room Utilization Chart
+        const roomCtx = document.getElementById('roomUtilizationChart').getContext('2d');
+        new Chart(roomCtx, {
+            type: 'bar',
+            data: {
+                labels: Object.keys(data.room_utilization || {}),
+                datasets: [{
+                    label: 'Số lần đặt',
+                    data: Object.values(data.room_utilization || {}),
+                    backgroundColor: ['#007bff', '#28a745'],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+    }
+});
+</script>
+{% endblock %}

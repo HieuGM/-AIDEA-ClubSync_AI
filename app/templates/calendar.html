@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2><i class="bi bi-calendar3"></i> Lịch đặt phòng</h2>
+                <div class="btn-group" role="group">
+                    <a href="{{ url_for('booking.create') }}" class="btn btn-primary">
+                        <i class="bi bi-plus-circle"></i> Đặt phòng
+                    </a>
+                    <button type="button" class="btn btn-outline-secondary" id="refreshCalendar">
+                        <i class="bi bi-arrow-clockwise"></i> Làm mới
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Calendar Legend -->
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h6 class="card-title">Chú thích màu:</h6>
+                    <div class="d-flex flex-wrap gap-3">
+                        <div class="d-flex align-items-center">
+                            <span class="badge bg-danger me-2">Pro</span>
+                            <small>CLB Pro</small>
+                        </div>
+                        <div class="d-flex align-items-center">
+                            <span class="badge" style="background-color: #4ECDC4;">Multi</span>
+                            <small class="ms-2">CLB Multi</small>
+                        </div>
+                        <div class="d-flex align-items-center">
+                            <span class="badge" style="background-color: #45B7D1;">GCC</span>
+                            <small class="ms-2">CLB GCC</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Calendar Container -->
+            <div class="card">
+                <div class="card-body">
+                    <div id="calendar"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Event Details Modal -->
+<div class="modal fade" id="eventModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="eventModalTitle">Chi tiết sự kiện</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="eventModalBody">
+                <!-- Event details will be loaded here -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                <button type="button" class="btn btn-danger" id="cancelEventBtn" style="display: none;">Hủy lịch</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var calendarEl = document.getElementById('calendar');
+    var calendar = new FullCalendar.Calendar(calendarEl, {
+        initialView: 'dayGridMonth',
+        headerToolbar: {
+            left: 'prev,next today',
+            center: 'title',
+            right: 'dayGridMonth,timeGridWeek,timeGridDay'
+        },
+        locale: 'vi',
+        firstDay: 1, // Monday
+        height: 'auto',
+        eventSources: [
+            {
+                url: '{{ url_for("api.get_events") }}',
+                method: 'GET',
+                failure: function() {
+                    alert('Không thể tải dữ liệu lịch!');
+                }
+            }
+        ],
+        eventClick: function(info) {
+            showEventDetails(info.event);
+        },
+        dateClick: function(info) {
+            // Redirect to booking form with selected date
+            var selectedDate = info.dateStr;
+            window.location.href = '{{ url_for("booking.create") }}?date=' + selectedDate;
+        },
+        eventDidMount: function(info) {
+            // Add tooltips
+            info.el.setAttribute('title', 
+                info.event.title + '\n' + 
+                'Người đặt: ' + info.event.extendedProps.user + '\n' +
+                'Phòng: ' + info.event.extendedProps.room
+            );
+        }
+    });
+    
+    calendar.render();
+    
+    // Refresh calendar
+    document.getElementById('refreshCalendar').addEventListener('click', function() {
+        calendar.refetchEvents();
+    });
+    
+    function showEventDetails(event) {
+        var modal = new bootstrap.Modal(document.getElementById('eventModal'));
+        var modalTitle = document.getElementById('eventModalTitle');
+        var modalBody = document.getElementById('eventModalBody');
+        var cancelBtn = document.getElementById('cancelEventBtn');
+        
+        modalTitle.textContent = event.title;
+        
+        var startTime = new Date(event.start).toLocaleString('vi-VN');
+        var endTime = new Date(event.end).toLocaleString('vi-VN');
+        
+        modalBody.innerHTML = `
+            <div class="row">
+                <div class="col-sm-4"><strong>Thời gian:</strong></div>
+                <div class="col-sm-8">${startTime} - ${endTime}</div>
+            </div>
+            <div class="row mt-2">
+                <div class="col-sm-4"><strong>Người đặt:</strong></div>
+                <div class="col-sm-8">
+                    ${event.extendedProps.user}
+                    <span class="badge bg-secondary">${event.extendedProps.club}</span>
+                </div>
+            </div>
+            <div class="row mt-2">
+                <div class="col-sm-4"><strong>Phòng:</strong></div>
+                <div class="col-sm-8">${event.extendedProps.room}</div>
+            </div>
+            <div class="row mt-2">
+                <div class="col-sm-4"><strong>Trạng thái:</strong></div>
+                <div class="col-sm-8">
+                    <span class="badge ${event.extendedProps.status === 'confirmed' ? 'bg-success' : 'bg-warning'}">
+                        ${event.extendedProps.status === 'confirmed' ? 'Đã xác nhận' : 'Chờ xác nhận'}
+                    </span>
+                </div>
+            </div>
+            ${event.extendedProps.description ? `
+            <div class="row mt-2">
+                <div class="col-sm-4"><strong>Mô tả:</strong></div>
+                <div class="col-sm-8">${event.extendedProps.description}</div>
+            </div>
+            ` : ''}
+        `;
+        
+        // Show cancel button if user owns this event
+        {% if current_user.is_authenticated %}
+        if (event.extendedProps.user === '{{ current_user.username }}' || {{ current_user.is_admin|tojson }}) {
+            cancelBtn.style.display = 'inline-block';
+            cancelBtn.onclick = function() {
+                if (confirm('Bạn có chắc muốn hủy lịch này?')) {
+                    window.location.href = '{{ url_for("booking.cancel", booking_id=0) }}'.replace('0', event.id);
+                }
+            };
+        } else {
+            cancelBtn.style.display = 'none';
+        }
+        {% endif %}
+        
+        modal.show();
+    }
+});
+</script>
+{% endblock %}
