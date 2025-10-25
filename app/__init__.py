@@ -38,6 +38,9 @@ def create_app(config_class=None):
     from app.routes.api import bp as api_bp
     app.register_blueprint(api_bp, url_prefix='/api')
     
+    from app.routes.agent_api import bp as agent_bp
+    app.register_blueprint(agent_bp, url_prefix='/api/agent')
+    
     # Create database tables
     with app.app_context():
         db.create_all()

@@ -1,0 +1,624 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h2><i class="bi bi-robot"></i> AI Smart Scheduler</h2>
+                    <p class="text-muted">AI tự động tìm khung giờ họp tối ưu cho team của bạn</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="row mb-4">
+        <div class="col-md-6 mb-3">
+            <div class="card border-primary h-100">
+                <div class="card-body text-center">
+                    <i class="bi bi-magic text-primary" style="font-size: 3rem;"></i>
+                    <h4 class="mt-3">Tìm Khung Giờ Tối Ưu</h4>
+                    <p class="text-muted">AI phân tích lịch bận và đề xuất 3 slots tốt nhất</p>
+                    <button class="btn btn-primary btn-lg" onclick="showSlotFinderModal()">
+                        <i class="bi bi-search"></i> Tìm ngay
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-6 mb-3">
+            <div class="card border-success h-100">
+                <div class="card-body text-center">
+                    <i class="bi bi-clipboard-check text-success" style="font-size: 3rem;"></i>
+                    <h4 class="mt-3">Tạo Poll Tự Động</h4>
+                    <p class="text-muted">Tạo poll "1 chạm" với 3 khung giờ tốt nhất</p>
+                    <button class="btn btn-success btn-lg" onclick="showPollCreatorModal()">
+                        <i class="bi bi-plus-circle"></i> Tạo Poll
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Features Overview -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0"><i class="bi bi-info-circle"></i> AI Agent có thể làm gì?</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <ul class="list-unstyled">
+                                <li class="mb-2">
+                                    <i class="bi bi-check-circle-fill text-success"></i>
+                                    <strong>Học thói quen</strong> từ lịch sử đặt phòng
+                                </li>
+                                <li class="mb-2">
+                                    <i class="bi bi-check-circle-fill text-success"></i>
+                                    <strong>Dự đoán xác suất</strong> tham dự của từng user
+                                </li>
+                                <li class="mb-2">
+                                    <i class="bi bi-check-circle-fill text-success"></i>
+                                    <strong>Tính toán thông minh</strong> kỳ vọng số người tham dự
+                                </li>
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <ul class="list-unstyled">
+                                <li class="mb-2">
+                                    <i class="bi bi-check-circle-fill text-success"></i>
+                                    <strong>Giải ràng buộc</strong> phức tạp (mentor, thành viên bắt buộc...)
+                                </li>
+                                <li class="mb-2">
+                                    <i class="bi bi-check-circle-fill text-success"></i>
+                                    <strong>Tối ưu hóa</strong> theo nhiều mục tiêu khác nhau
+                                </li>
+                                <li class="mb-2">
+                                    <i class="bi bi-check-circle-fill text-success"></i>
+                                    <strong>Đề xuất nhanh</strong> với poll "1 chạm"
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Results Area -->
+    <div id="resultsArea" style="display: none;">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="bi bi-stars"></i> Kết quả đề xuất từ AI</h5>
+            </div>
+            <div class="card-body" id="resultsContent">
+                <!-- Results will be inserted here -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Slot Finder Modal -->
+<div class="modal fade" id="slotFinderModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title"><i class="bi bi-search"></i> Tìm Khung Giờ Tối Ưu</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="slotFinderForm">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Thời lượng meeting (phút)</label>
+                            <select class="form-select" id="duration" required>
+                                <option value="30">30 phút</option>
+                                <option value="60" selected>60 phút (1 tiếng)</option>
+                                <option value="90">90 phút (1.5 tiếng)</option>
+                                <option value="120">120 phút (2 tiếng)</option>
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Số ngày tìm kiếm</label>
+                            <select class="form-select" id="daysAhead">
+                                <option value="7" selected>7 ngày tới</option>
+                                <option value="14">14 ngày tới</option>
+                                <option value="21">21 ngày tới</option>
+                                <option value="30">30 ngày tới</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Mục tiêu tối ưu</label>
+                            <select class="form-select" id="objective">
+                                <option value="balanced" selected>Cân bằng (Khuyến nghị)</option>
+                                <option value="max_attendance">Tối đa người tham dự</option>
+                                <option value="max_probability">Tối đa xác suất tham dự</option>
+                                <option value="fairness">Công bằng</option>
+                                <option value="mentor_priority">Ưu tiên Mentor</option>
+                            </select>
+                            <small class="form-text text-muted">
+                                <span id="objectiveHelp">Tối ưu nhiều yếu tố: attendance, mentor, thời gian...</span>
+                            </small>
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Số lượng đề xuất</label>
+                            <select class="form-select" id="topN">
+                                <option value="3" selected>3 slots</option>
+                                <option value="5">5 slots</option>
+                                <option value="10">10 slots</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Số người tối thiểu</label>
+                        <input type="number" class="form-control" id="minAttendees" min="1" value="3">
+                        <small class="form-text text-muted">Chỉ đề xuất slots có ít nhất số người này</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Khung giờ</label>
+                        <div class="row">
+                            <div class="col-6">
+                                <input type="number" class="form-control" id="earliestHour" min="0" max="23" value="9" placeholder="Giờ bắt đầu">
+                            </div>
+                            <div class="col-6">
+                                <input type="number" class="form-control" id="latestHour" min="0" max="23" value="18" placeholder="Giờ kết thúc">
+                            </div>
+                        </div>
+                        <small class="form-text text-muted">Chỉ tìm trong khung giờ này (0-23)</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Filter theo CLB (tùy chọn)</label>
+                        <select class="form-select" id="clubFilter">
+                            <option value="">Tất cả CLB</option>
+                            <option value="Pro">Chỉ CLB Pro</option>
+                            <option value="Multi">Chỉ CLB Multi</option>
+                            <option value="GCC">Chỉ CLB GCC</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                <button type="button" class="btn btn-primary" onclick="findOptimalSlots()">
+                    <i class="bi bi-magic"></i> Tìm ngay
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Poll Creator Modal -->
+<div class="modal fade" id="pollCreatorModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title"><i class="bi bi-clipboard-check"></i> Tạo Poll Tự Động</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="pollCreatorForm">
+                    <div class="mb-3">
+                        <label class="form-label">Tiêu đề Meeting</label>
+                        <input type="text" class="form-control" id="pollMeetingTitle" required placeholder="Ví dụ: Weekly Team Sync">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Thời lượng (phút)</label>
+                        <select class="form-select" id="pollDuration">
+                            <option value="30">30 phút</option>
+                            <option value="60" selected>60 phút</option>
+                            <option value="90">90 phút</option>
+                            <option value="120">120 phút</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Số người tối thiểu</label>
+                        <input type="number" class="form-control" id="pollMinAttendees" min="1" value="3">
+                    </div>
+
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i>
+                        <strong>Poll sẽ tự động đề xuất 3 khung giờ tốt nhất với 3 mục tiêu:</strong>
+                        <ul class="mb-0 mt-2">
+                            <li>Tối đa người tham dự</li>
+                            <li>Cân bằng các yếu tố</li>
+                            <li>Ưu tiên Mentor</li>
+                        </ul>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                <button type="button" class="btn btn-success" onclick="createSmartPoll()">
+                    <i class="bi bi-magic"></i> Tạo Poll
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Loading Overlay -->
+<div id="loadingOverlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999;">
+    <div class="d-flex justify-content-center align-items-center h-100">
+        <div class="text-center text-white">
+            <div class="spinner-border" role="status" style="width: 3rem; height: 3rem;">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <h4 class="mt-3">AI đang phân tích...</h4>
+            <p>Vui lòng đợi trong giây lát</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Show modals
+function showSlotFinderModal() {
+    new bootstrap.Modal(document.getElementById('slotFinderModal')).show();
+}
+
+function showPollCreatorModal() {
+    new bootstrap.Modal(document.getElementById('pollCreatorModal')).show();
+}
+
+// Update objective help text
+document.getElementById('objective')?.addEventListener('change', function() {
+    const helpTexts = {
+        'balanced': 'Tối ưu nhiều yếu tố: attendance, mentor, thời gian...',
+        'max_attendance': 'Tìm slot có nhiều người available nhất',
+        'max_probability': 'Tìm slot có xác suất tham dự cao nhất',
+        'fairness': 'Đảm bảo công bằng giữa các thành viên',
+        'mentor_priority': 'Ưu tiên slots có mentor tham gia'
+    };
+    document.getElementById('objectiveHelp').textContent = helpTexts[this.value];
+});
+
+// Find Optimal Slots
+async function findOptimalSlots() {
+    const duration = document.getElementById('duration').value;
+    const daysAhead = document.getElementById('daysAhead').value;
+    const objective = document.getElementById('objective').value;
+    const topN = document.getElementById('topN').value;
+    const minAttendees = document.getElementById('minAttendees').value;
+    const earliestHour = document.getElementById('earliestHour').value;
+    const latestHour = document.getElementById('latestHour').value;
+    const clubFilter = document.getElementById('clubFilter').value;
+
+    // Validate
+    if (parseInt(earliestHour) >= parseInt(latestHour)) {
+        alert('Giờ bắt đầu phải nhỏ hơn giờ kết thúc!');
+        return;
+    }
+
+    // Build constraints
+    const constraints = {
+        min_attendees: parseInt(minAttendees),
+        time_constraints: {
+            earliest_hour: parseInt(earliestHour),
+            latest_hour: parseInt(latestHour)
+        }
+    };
+
+    if (clubFilter) {
+        constraints.club_filter = clubFilter;
+    }
+
+    // Show loading
+    document.getElementById('loadingOverlay').style.display = 'block';
+    
+    // Hide modal
+    bootstrap.Modal.getInstance(document.getElementById('slotFinderModal')).hide();
+
+    try {
+        const response = await fetch('/api/agent/suggest-slots', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                duration_minutes: parseInt(duration),
+                constraints: constraints,
+                objective: objective,
+                days_ahead: parseInt(daysAhead),
+                top_n: parseInt(topN)
+            })
+        });
+
+        const data = await response.json();
+        
+        if (data.success) {
+            displaySlotResults(data.slots, objective);
+        } else {
+            alert('Lỗi: ' + data.error);
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Không thể kết nối với AI Agent. Vui lòng thử lại!');
+    } finally {
+        document.getElementById('loadingOverlay').style.display = 'none';
+    }
+}
+
+// Create Smart Poll
+async function createSmartPoll() {
+    const title = document.getElementById('pollMeetingTitle').value;
+    const duration = document.getElementById('pollDuration').value;
+    const minAttendees = document.getElementById('pollMinAttendees').value;
+
+    if (!title) {
+        alert('Vui lòng nhập tiêu đề meeting!');
+        return;
+    }
+
+    // Show loading
+    document.getElementById('loadingOverlay').style.display = 'block';
+    
+    // Hide modal
+    bootstrap.Modal.getInstance(document.getElementById('pollCreatorModal')).hide();
+
+    try {
+        const response = await fetch('/api/agent/create-poll', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                meeting_title: title,
+                duration_minutes: parseInt(duration),
+                constraints: {
+                    min_attendees: parseInt(minAttendees)
+                }
+            })
+        });
+
+        const data = await response.json();
+        
+        if (data.success) {
+            displayPollResults(data.poll);
+        } else {
+            alert('Lỗi: ' + data.error);
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Không thể tạo poll. Vui lòng thử lại!');
+    } finally {
+        document.getElementById('loadingOverlay').style.display = 'none';
+    }
+}
+
+// Display Slot Results
+function displaySlotResults(slots, objective) {
+    const resultsArea = document.getElementById('resultsArea');
+    const resultsContent = document.getElementById('resultsContent');
+
+    if (!slots || slots.length === 0) {
+        resultsContent.innerHTML = `
+            <div class="alert alert-warning">
+                <i class="bi bi-exclamation-triangle"></i>
+                <strong>Không tìm thấy slot phù hợp!</strong>
+                <p class="mb-0 mt-2">Gợi ý:</p>
+                <ul class="mb-0">
+                    <li>Thử nới lỏng constraints (giảm số người tối thiểu)</li>
+                    <li>Tăng số ngày tìm kiếm</li>
+                    <li>Thay đổi khung giờ</li>
+                </ul>
+            </div>
+        `;
+        resultsArea.style.display = 'block';
+        resultsArea.scrollIntoView({ behavior: 'smooth' });
+        return;
+    }
+
+    const objectiveNames = {
+        'balanced': 'Cân bằng',
+        'max_attendance': 'Tối đa người tham dự',
+        'max_probability': 'Tối đa xác suất',
+        'fairness': 'Công bằng',
+        'mentor_priority': 'Ưu tiên Mentor'
+    };
+
+    let html = `
+        <div class="alert alert-success">
+            <i class="bi bi-check-circle"></i>
+            <strong>Tìm thấy ${slots.length} khung giờ tối ưu!</strong>
+            <span class="ms-2 badge bg-success">${objectiveNames[objective]}</span>
+        </div>
+        
+        <div class="row">
+    `;
+
+    slots.forEach((slot, index) => {
+        const rankBadges = ['primary', 'success', 'info', 'warning', 'secondary'];
+        const rankBadge = rankBadges[index] || 'secondary';
+        
+        html += `
+            <div class="col-md-6 mb-3">
+                <div class="card border-${rankBadge} h-100">
+                    <div class="card-header bg-${rankBadge} text-white">
+                        <h5 class="mb-0">
+                            <i class="bi bi-trophy"></i> #${index + 1} 
+                            - Điểm: ${slot.score}
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <h4 class="text-${rankBadge}">
+                            <i class="bi bi-calendar-event"></i>
+                            ${slot.start_time_str}
+                        </h4>
+                        <p class="text-muted mb-3">
+                            <i class="bi bi-clock"></i> ${slot.day_name}
+                            | ${slot.end_time_str}
+                        </p>
+
+                        <div class="row mb-3">
+                            <div class="col-6">
+                                <div class="text-center p-2 bg-light rounded">
+                                    <h3 class="mb-0 text-primary">${slot.available_count}</h3>
+                                    <small class="text-muted">Người available</small>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="text-center p-2 bg-light rounded">
+                                    <h3 class="mb-0 text-success">${slot.expected_attendance}</h3>
+                                    <small class="text-muted">Kỳ vọng tham dự</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        ${slot.mentor_count > 0 ? `
+                            <div class="alert alert-info mb-3">
+                                <i class="bi bi-mortarboard-fill"></i>
+                                <strong>${slot.mentor_count} Mentor</strong> có thể tham gia
+                            </div>
+                        ` : ''}
+
+                        <h6 class="mb-2">
+                            <i class="bi bi-people"></i> Top attendees:
+                        </h6>
+                        <ul class="list-unstyled">
+                            ${slot.user_details.slice(0, 5).map(user => `
+                                <li class="mb-1">
+                                    ${user.is_mentor ? '<i class="bi bi-mortarboard-fill text-primary"></i>' : '<i class="bi bi-person"></i>'}
+                                    <strong>${user.username}</strong>
+                                    <span class="badge bg-secondary">${user.club}</span>
+                                    <span class="ms-2 text-success">${Math.round(user.attendance_probability * 100)}%</span>
+                                </li>
+                            `).join('')}
+                            ${slot.user_details.length > 5 ? `
+                                <li class="text-muted">
+                                    <small>... và ${slot.user_details.length - 5} người khác</small>
+                                </li>
+                            ` : ''}
+                        </ul>
+
+                        <div class="d-grid gap-2 mt-3">
+                            <button class="btn btn-${rankBadge}" onclick="useThisSlot('${slot.start_time}', '${slot.end_time}')">
+                                <i class="bi bi-check-circle"></i> Chọn slot này
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+
+    html += '</div>';
+
+    resultsContent.innerHTML = html;
+    resultsArea.style.display = 'block';
+    resultsArea.scrollIntoView({ behavior: 'smooth' });
+}
+
+// Display Poll Results
+function displayPollResults(poll) {
+    const resultsArea = document.getElementById('resultsArea');
+    const resultsContent = document.getElementById('resultsContent');
+
+    let html = `
+        <div class="alert alert-success">
+            <i class="bi bi-check-circle"></i>
+            <strong>Poll đã được tạo thành công!</strong>
+            <p class="mb-0 mt-2">${poll.title} - ${poll.duration_minutes} phút</p>
+        </div>
+
+        ${poll.recommendation ? `
+            <div class="alert alert-primary">
+                <i class="bi bi-lightbulb"></i>
+                <strong>Khuyến nghị:</strong>
+                <pre class="mb-0 mt-2" style="white-space: pre-wrap;">${poll.recommendation}</pre>
+            </div>
+        ` : ''}
+
+        <h5 class="mb-3"><i class="bi bi-clipboard-check"></i> 3 Lựa chọn được đề xuất:</h5>
+        
+        <div class="row">
+    `;
+
+    const objectiveColors = {
+        'max_attendance': 'primary',
+        'balanced': 'success',
+        'mentor_priority': 'info'
+    };
+
+    poll.options.forEach((option, index) => {
+        const color = objectiveColors[option.objective_type] || 'secondary';
+        
+        html += `
+            <div class="col-md-4 mb-3">
+                <div class="card border-${color} h-100">
+                    <div class="card-header bg-${color} text-white">
+                        <h6 class="mb-0">
+                            Option ${index + 1}
+                            <small class="d-block mt-1">${option.objective_type.replace('_', ' ')}</small>
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <h5 class="text-${color}">
+                            <i class="bi bi-calendar-event"></i>
+                            ${option.start_time_str}
+                        </h5>
+                        <p class="text-muted">${option.day_name}</p>
+
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between mb-1">
+                                <small>Available:</small>
+                                <strong class="text-primary">${option.available_count}</strong>
+                            </div>
+                            <div class="d-flex justify-content-between mb-1">
+                                <small>Kỳ vọng:</small>
+                                <strong class="text-success">${option.expected_attendance}</strong>
+                            </div>
+                            <div class="d-flex justify-content-between mb-1">
+                                <small>Mentors:</small>
+                                <strong class="text-info">${option.mentor_count}</strong>
+                            </div>
+                            <div class="d-flex justify-content-between">
+                                <small>Score:</small>
+                                <strong>${option.score}</strong>
+                            </div>
+                        </div>
+
+                        <button class="btn btn-${color} btn-sm w-100" onclick="useThisSlot('${option.start_time}', '${option.end_time}')">
+                            <i class="bi bi-check"></i> Chọn
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+
+    html += '</div>';
+
+    resultsContent.innerHTML = html;
+    resultsArea.style.display = 'block';
+    resultsArea.scrollIntoView({ behavior: 'smooth' });
+}
+
+// Use selected slot - redirect to booking form
+function useThisSlot(startTime, endTime) {
+    const start = new Date(startTime);
+    const end = new Date(endTime);
+    
+    // Redirect to booking form with pre-filled times
+    const url = new URL('{{ url_for("booking.create") }}', window.location.origin);
+    url.searchParams.set('start', start.toISOString());
+    url.searchParams.set('end', end.toISOString());
+    
+    window.location.href = url.toString();
+}
+</script>
+{% endblock %}

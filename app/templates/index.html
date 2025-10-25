@@ -96,6 +96,51 @@
         </div>
     </div>
 
+    <!-- AI Feature Highlight -->
+    {% if current_user.is_authenticated %}
+    <div class="row py-5">
+        <div class="col-12">
+            <div class="card border-0 shadow-lg" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                <div class="card-body text-white p-5">
+                    <div class="row align-items-center">
+                        <div class="col-md-8">
+                            <h2 class="mb-3">
+                                <i class="bi bi-robot"></i> AI Smart Scheduler
+                            </h2>
+                            <p class="lead mb-4">
+                                Để AI tự động tìm khung giờ họp tối ưu cho team của bạn!
+                            </p>
+                            <ul class="list-unstyled mb-0">
+                                <li class="mb-2">
+                                    <i class="bi bi-check-circle-fill"></i>
+                                    Học thói quen từ lịch sử đặt phòng
+                                </li>
+                                <li class="mb-2">
+                                    <i class="bi bi-check-circle-fill"></i>
+                                    Dự đoán xác suất tham dự chính xác
+                                </li>
+                                <li class="mb-2">
+                                    <i class="bi bi-check-circle-fill"></i>
+                                    Tối ưu hóa theo nhiều mục tiêu
+                                </li>
+                                <li class="mb-2">
+                                    <i class="bi bi-check-circle-fill"></i>
+                                    Tạo poll "1 chạm" với 3 khung giờ tốt nhất
+                                </li>
+                            </ul>
+                        </div>
+                        <div class="col-md-4 text-center">
+                            <a href="{{ url_for('main.smart_scheduler') }}" class="btn btn-light btn-lg px-5">
+                                <i class="bi bi-magic"></i> Dùng AI ngay
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Room Info Section -->
     <div class="row py-5 bg-light rounded">
         <div class="col-12">
@@ -158,15 +203,23 @@
             <h2 class="text-center mb-5">Thao tác nhanh</h2>
         </div>
         
-        <div class="col-md-4 mb-3">
+        <div class="col-md-3 mb-3">
             <div class="d-grid">
-                <a href="{{ url_for('booking.create') }}" class="btn btn-primary btn-lg">
-                    <i class="bi bi-plus-circle"></i> Đặt phòng mới
+                <a href="{{ url_for('main.smart_scheduler') }}" class="btn btn-primary btn-lg">
+                    <i class="bi bi-robot"></i> AI Scheduler
                 </a>
             </div>
         </div>
         
-        <div class="col-md-4 mb-3">
+        <div class="col-md-3 mb-3">
+            <div class="d-grid">
+                <a href="{{ url_for('booking.create') }}" class="btn btn-success btn-lg">
+                    <i class="bi bi-plus-circle"></i> Đặt phòng
+                </a>
+            </div>
+        </div>
+        
+        <div class="col-md-3 mb-3">
             <div class="d-grid">
                 <a href="{{ url_for('main.calendar') }}" class="btn btn-info btn-lg">
                     <i class="bi bi-calendar"></i> Xem lịch
@@ -174,9 +227,9 @@
             </div>
         </div>
         
-        <div class="col-md-4 mb-3">
+        <div class="col-md-3 mb-3">
             <div class="d-grid">
-                <a href="{{ url_for('booking.my_bookings') }}" class="btn btn-success btn-lg">
+                <a href="{{ url_for('booking.my_bookings') }}" class="btn btn-warning btn-lg">
                     <i class="bi bi-list-ul"></i> Lịch của tôi
                 </a>
             </div>

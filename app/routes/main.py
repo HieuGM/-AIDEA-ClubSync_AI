@@ -21,3 +21,8 @@ def calendar():
 @login_required
 def availability():
     return render_template('availability.html', title='Quản lý thời gian')
+
+@bp.route('/smart-scheduler')
+@login_required
+def smart_scheduler():
+    return render_template('smart_scheduler.html', title='AI Smart Scheduler')

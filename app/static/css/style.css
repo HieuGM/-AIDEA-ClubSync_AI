@@ -223,3 +223,125 @@ footer {
         border: 2px solid currentColor;
     }
 }
+
+/* AI Smart Scheduler Styles */
+.ai-gradient-bg {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.robot-icon-animated {
+    animation: robotFloat 3s ease-in-out infinite;
+}
+
+@keyframes robotFloat {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-10px); }
+}
+
+.slot-card {
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.slot-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+}
+
+.pulse-badge {
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.7; }
+    100% { opacity: 1; }
+}
+
+.modal-backdrop.show {
+    opacity: 0.7;
+}
+
+/* AI Results Animation */
+@keyframes slideInUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.ai-result-card {
+    animation: slideInUp 0.5s ease-out;
+}
+
+.ai-result-card:nth-child(2) {
+    animation-delay: 0.1s;
+}
+
+.ai-result-card:nth-child(3) {
+    animation-delay: 0.2s;
+}
+
+/* Gradient Button */
+.btn-gradient-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border: none;
+    color: white;
+}
+
+.btn-gradient-primary:hover {
+    background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+    color: white;
+}
+
+/* Stats Display */
+.stat-box {
+    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+    border-radius: 10px;
+    padding: 1rem;
+    text-align: center;
+}
+
+.stat-number {
+    font-size: 2rem;
+    font-weight: bold;
+    color: #007bff;
+}
+
+/* Loading Spinner Enhanced */
+.spinner-border-lg {
+    width: 3rem;
+    height: 3rem;
+    border-width: 0.3em;
+}
+
+/* Tooltip Custom */
+.custom-tooltip {
+    position: relative;
+    display: inline-block;
+}
+
+.custom-tooltip .tooltiptext {
+    visibility: hidden;
+    background-color: #555;
+    color: #fff;
+    text-align: center;
+    border-radius: 6px;
+    padding: 5px 10px;
+    position: absolute;
+    z-index: 1;
+    bottom: 125%;
+    left: 50%;
+    margin-left: -60px;
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+.custom-tooltip:hover .tooltiptext {
+    visibility: visible;
+    opacity: 1;
+}

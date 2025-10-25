@@ -10,6 +10,49 @@
 - ⏰ **Quản lý thời gian**: Đánh dấu thời gian bận và thống kê
 - 🔐 **Xác thực**: Đăng nhập/đăng ký bảo mật
 - 📊 **Thống kê**: Dashboard với biểu đồ và báo cáo
+- 🤖 **AI Agent**: Tự động tìm khung giờ họp tối ưu với AI
+
+## 🤖 AI Agent - Tính năng mới!
+
+ClubSync.AI tích hợp **AI Agent thông minh** để tự động tìm và đề xuất khung giờ họp tối ưu:
+
+### ✨ Khả năng của Agent:
+- 🧠 **Học thói quen** từ lịch sử booking của users
+- 📊 **Ước lượng xác suất tham dự** dựa trên patterns
+- 🎯 **Giải ràng buộc đa đối tượng** (thành viên bắt buộc, mentor, ưu tiên...)
+- 🏆 **Tối ưu hóa** theo nhiều mục tiêu (đông người, công bằng, có mentor...)
+- 🗳️ **Tạo poll "1 chạm"** với 3 khung giờ tốt nhất tự động
+
+### 🚀 Quick Start với AI Agent:
+
+```python
+from app.ai.agent import create_agent
+
+# Tạo agent
+agent = create_agent()
+
+# Tìm 3 slots tốt nhất
+slots = agent.find_optimal_slots(
+    duration_minutes=60,
+    constraints={'min_attendees': 5},
+    objective='balanced',
+    top_n=3
+)
+
+# Tạo poll tự động
+poll = agent.create_smart_poll(
+    meeting_title="Team Meeting",
+    duration_minutes=60
+)
+```
+
+### 📡 API Endpoints cho AI:
+- `POST /api/agent/suggest-slots` - Tìm slots tối ưu
+- `POST /api/agent/create-poll` - Tạo poll tự động
+- `GET /api/agent/user-patterns/<id>` - Xem patterns học được
+- `POST /api/agent/attendance-probability` - Tính xác suất tham dự
+
+**Chi tiết:** Xem `docs/AI_AGENT_QUICK_START.md` và `docs/AI_AGENT_DOCUMENTATION.md`
 
 ## Công nghệ sử dụng
 
@@ -112,6 +155,14 @@ ClubSync.AI/
 - `GET/POST /api/availability` - Quản lý thời gian bận
 - `GET /api/stats` - Thống kê
 
+### AI Agent API
+- `POST /api/agent/suggest-slots` - Tìm slots tối ưu với AI
+- `POST /api/agent/create-poll` - Tạo poll tự động "1 chạm"
+- `GET /api/agent/user-patterns/<id>` - Xem patterns học được
+- `POST /api/agent/attendance-probability` - Tính xác suất tham dự
+- `POST /api/agent/analyze-constraints` - Phân tích constraints
+- `GET /api/agent/health` - Health check
+
 ## Database Schema
 
 ### User
@@ -151,10 +202,17 @@ ClubSync.AI/
 ## Tích hợp AI (Tương lai)
 
 Ứng dụng được thiết kế sẵn để tích hợp AI với các tính năng:
-- Gợi ý thời gian đặt phòng tối ưu
-- Phân tích pattern sử dụng phòng
-- Chatbot hỗ trợ người dùng
-- Dự đoán nhu cầu sử dụng phòng
+- ✅ **AI Agent thông minh** (ĐÃ HOÀN THÀNH) - Tự động tìm khung giờ họp tối ưu
+- ✅ **Học thói quen users** (ĐÃ HOÀN THÀNH) - Pattern learning từ lịch sử
+- ✅ **Poll tự động** (ĐÃ HOÀN THÀNH) - Tạo poll "1 chạm" với 3 slots tốt nhất
+- 🔮 Chatbot hỗ trợ người dùng
+- 🔮 Dự đoán nhu cầu sử dụng phòng
+- 🔮 Phân tích conflicts và đề xuất giải pháp
+
+**Demo AI Agent:**
+```bash
+python demo_agent.py
+```
 
 ## Đóng góp
 
