@@ -1,17 +1,19 @@
 """
-ClubSync.AI - Intelligent Meeting Scheduler Agent
-==================================================
-AI Agent tự động tìm kiếm và đề xuất khung giờ họp tối ưu với các tính năng:
-- Học thói quen và lịch sử tham dự của user
+ClubSync.AI - Intelligent Meeting Scheduler Agent (OpenAI Powered)
+===================================================================
+AI Agent sử dụng OpenAI GPT để tìm kiếm và đề xuất khung giờ họp tối ưu:
+- Phân tích lịch bận/rảnh của tất cả thành viên
+- Sử dụng GPT để đưa ra quyết định thông minh về khung giờ tốt nhất
 - Giải ràng buộc đa đối tượng (thành viên bắt buộc, mentor, ưu tiên...)
-- Tính toán xác suất tham dự dựa trên lịch sử
-- Đề xuất 3 slot tốt nhất theo mục tiêu (đông người, công bằng, có mentor...)
+- Đề xuất 3 slot tốt nhất với lý do chi tiết từ AI
 """
 
 from datetime import datetime, timedelta
 from collections import defaultdict, Counter
 from typing import List, Dict, Set, Tuple, Optional
-import math
+import json
+import os
+from openai import OpenAI
 
 # ============================================================================
 # CONSTANTS & CONFIGURATION
@@ -39,26 +41,46 @@ WEIGHTS = {
 
 class MeetingSchedulerAgent:
     """
-    AI Agent thông minh cho việc tìm kiếm và đề xuất khung giờ họp tối ưu.
+    AI Agent thông minh sử dụng OpenAI GPT để đề xuất khung giờ họp tối ưu.
     
     Chức năng chính:
     1. Phân tích lịch bận của tất cả users
-    2. Học pattern thói quen từ lịch sử booking
-    3. Tính xác suất tham dự cho từng user tại mỗi slot
+    2. Thu thập lịch sử booking và patterns
+    3. Sử dụng OpenAI GPT để phân tích và đưa ra quyết định
     4. Giải ràng buộc đa đối tượng
-    5. Đề xuất top 3 slots theo các mục tiêu khác nhau
+    5. Đề xuất top 3 slots với lý do chi tiết từ AI
     """
     
-    def __init__(self, db_session):
+    def __init__(self, db_session, api_key: Optional[str] = None, model: Optional[str] = None):
         """
-        Khởi tạo Agent với database session
+        Khởi tạo Agent với database session và OpenAI client
         
         Args:
             db_session: SQLAlchemy session để truy vấn database
+            api_key: OpenAI API key (nếu None sẽ lấy từ config)
+            model: Model name (nếu None sẽ lấy từ config, mặc định gpt-4o-mini)
         """
         self.db = db_session
-        self.user_patterns = {}  # Cache các pattern học được của user
-        self.booking_history = []  # Lịch sử booking để học
+        self.booking_history = []  # Lịch sử booking
+        
+        # Khởi tạo NVIDIA client
+        from config import Config
+
+        # 1. Dùng biến .env mới (ví dụ: NVIDIA_API_KEY)
+        self.api_key = api_key or Config.AI_API_KEY 
+        # 2. Đổi model mặc định sang Llama 3
+        self.model = model or Config.AI_MODEL or 'meta/llama3-8b-instruct'
+
+        if not self.api_key:
+        # 3. Cập nhật thông báo lỗi
+            raise ValueError("NVIDIA API key is required. Set NVIDIA_API_KEY in .env file")
+ 
+        # 4. Khởi tạo client trỏ đến endpoint của NVIDIA
+        self.client = OpenAI(
+            base_url="https://integrate.api.nvidia.com/v1",
+            api_key=self.api_key
+        )
+        print(f"NVIDIA Agent initialized with model: {self.model}")
         
     # ========================================================================
     # 1. DATA COLLECTION - Lấy dữ liệu từ Database
@@ -110,119 +132,60 @@ class MeetingSchedulerAgent:
         return bookings
     
     # ========================================================================
-    # 2. PATTERN LEARNING - Học thói quen và pattern từ lịch sử
+    # 2. DATA ANALYSIS - Phân tích dữ liệu user và lịch sử
     # ========================================================================
     
-    def learn_user_patterns(self, user_id: int) -> Dict:
+    def analyze_user_history(self, user_id: int) -> Dict:
         """
-        Học pattern thói quen của một user từ lịch sử booking
-        
-        Phân tích:
-        - Khung giờ ưa thích (morning/afternoon/evening)
-        - Ngày trong tuần thường tham gia
-        - Tần suất tham dự
-        - Độ trễ/sớm so với lịch đã đặt
+        Phân tích lịch sử booking của user để tạo summary
         
         Args:
-            user_id: ID của user cần học pattern
+            user_id: ID của user cần phân tích
             
         Returns:
-            Dict: Pattern data của user
+            Dict: Summary data của user
         """
-        if user_id in self.user_patterns:
-            return self.user_patterns[user_id]
+        from app.models import Booking, User
         
-        # Lấy lịch sử booking của user
-        from app.models import Booking
+        user = User.query.get(user_id)
+        if not user:
+            return {}
+        
         user_bookings = [b for b in self.booking_history if b.user_id == user_id]
         
         if not user_bookings:
-            # Không có lịch sử -> return pattern mặc định
-            return self._default_pattern()
+            return {
+                'user_id': user_id,
+                'username': user.username,
+                'club': user.club,
+                'is_mentor': user.is_admin,
+                'total_bookings': 0,
+                'attendance_rate': 0.7  # Default
+            }
         
-        # Phân tích các patterns
+        # Phân tích patterns
         hour_counts = Counter()
         day_counts = Counter()
-        total_bookings = len(user_bookings)
         
         for booking in user_bookings:
-            hour = booking.start_time.hour
-            day = booking.start_time.weekday()
-            
-            hour_counts[hour] += 1
-            day_counts[day] += 1
+            hour_counts[booking.start_time.hour] += 1
+            day_counts[booking.start_time.weekday()] += 1
         
-        # Tính xác suất theo khung giờ và ngày
-        pattern = {
-            'user_id': user_id,
-            'total_bookings': total_bookings,
-            'preferred_hours': dict(hour_counts),
-            'preferred_days': dict(day_counts),
-            'hour_probability': {h: count/total_bookings for h, count in hour_counts.items()},
-            'day_probability': {d: count/total_bookings for d, count in day_counts.items()},
-            'time_slot_preference': self._categorize_time_preference(hour_counts),
-            'most_active_day': day_counts.most_common(1)[0][0] if day_counts else 2,  # Default Wednesday
-            'attendance_rate': self._calculate_attendance_rate(user_id)
-        }
-        
-        self.user_patterns[user_id] = pattern
-        return pattern
-    
-    def _default_pattern(self) -> Dict:
-        """Pattern mặc định cho user mới không có lịch sử"""
-        return {
-            'user_id': None,
-            'total_bookings': 0,
-            'preferred_hours': {},
-            'preferred_days': {},
-            'hour_probability': {},
-            'day_probability': {},
-            'time_slot_preference': 'afternoon',  # Mặc định chiều
-            'most_active_day': 2,  # Wednesday
-            'attendance_rate': 0.7  # Giả định 70% attendance cho user mới
-        }
-    
-    def _categorize_time_preference(self, hour_counts: Counter) -> str:
-        """
-        Phân loại preference thời gian: morning, afternoon, evening
-        
-        Args:
-            hour_counts: Counter của các giờ đã booking
-            
-        Returns:
-            str: 'morning', 'afternoon', hoặc 'evening'
-        """
-        morning = sum(count for hour, count in hour_counts.items() if 7 <= hour < 12)
-        afternoon = sum(count for hour, count in hour_counts.items() if 12 <= hour < 18)
-        evening = sum(count for hour, count in hour_counts.items() if 18 <= hour < 22)
-        
-        max_count = max(morning, afternoon, evening)
-        if max_count == 0:
-            return 'afternoon'
-        if morning == max_count:
-            return 'morning'
-        elif afternoon == max_count:
-            return 'afternoon'
-        else:
-            return 'evening'
-    
-    def _calculate_attendance_rate(self, user_id: int) -> float:
-        """
-        Tính tỷ lệ tham dự dựa trên số booking đã tạo vs hủy
-        
-        Args:
-            user_id: ID của user
-            
-        Returns:
-            float: Attendance rate từ 0.0 đến 1.0
-        """
-        from app.models import Booking
+        # Tính attendance rate
         total = Booking.query.filter_by(user_id=user_id).count()
-        if total == 0:
-            return 0.7  # Default 70%
-        
         confirmed = Booking.query.filter_by(user_id=user_id, status='confirmed').count()
-        return confirmed / total
+        attendance_rate = confirmed / total if total > 0 else 0.7
+        
+        return {
+            'user_id': user_id,
+            'username': user.username,
+            'club': user.club,
+            'is_mentor': user.is_admin,
+            'total_bookings': len(user_bookings),
+            'preferred_hours': dict(hour_counts.most_common(3)),
+            'preferred_days': dict(day_counts.most_common(3)),
+            'attendance_rate': attendance_rate
+        }
     
     # ========================================================================
     # 3. AVAILABILITY ANALYSIS - Phân tích lịch rảnh/bận
@@ -283,77 +246,146 @@ class MeetingSchedulerAgent:
         return grid
     
     # ========================================================================
-    # 4. PROBABILITY ESTIMATION - Ước lượng xác suất tham dự
+    # 4. OPENAI ANALYSIS - Sử dụng GPT để phân tích và đưa ra quyết định
     # ========================================================================
     
-    def estimate_attendance_probability(self, user_id: int, slot_datetime: datetime) -> float:
+    def ask_gpt_to_analyze_slots(self, candidate_slots: List[Dict], 
+                                  constraints: Dict, objective: str) -> List[Dict]:
         """
-        Ước lượng xác suất user sẽ tham dự tại slot cụ thể
-        
-        Dựa trên:
-        - Lịch sử tham dự
-        - Khung giờ ưa thích
-        - Ngày trong tuần
-        - Attendance rate tổng thể
+        Sử dụng OpenAI GPT để phân tích và chấm điểm các slots
         
         Args:
-            user_id: ID của user
-            slot_datetime: Thời điểm slot
+            candidate_slots: Danh sách các slots khả thi
+            constraints: Các ràng buộc
+            objective: Mục tiêu (max_attendance, balanced, mentor_priority, fairness)
             
         Returns:
-            float: Xác suất từ 0.0 đến 1.0
+            List[Dict]: Slots đã được GPT phân tích và chấm điểm
         """
-        pattern = self.learn_user_patterns(user_id)
+        print(f"Đang sử dụng ({self.model}) để phân tích {len(candidate_slots)} slots...")
         
-        # Base probability từ attendance rate
-        base_prob = pattern['attendance_rate']
-        
-        # Điều chỉnh theo giờ
-        hour = slot_datetime.hour
-        hour_prob = pattern['hour_probability'].get(hour, 0.5)  # Default 0.5 nếu chưa có data
-        
-        # Điều chỉnh theo ngày
-        day = slot_datetime.weekday()
-        day_prob = pattern['day_probability'].get(day, 0.5)
-        
-        # Kết hợp các xác suất (weighted average)
-        combined_prob = (
-            base_prob * 0.4 +
-            hour_prob * 0.3 +
-            day_prob * 0.3
-        )
-        
-        # Đảm bảo trong khoảng [0, 1]
-        return max(0.0, min(1.0, combined_prob))
-    
-    def calculate_expected_attendance(self, user_ids: Set[int], slot_datetime: datetime) -> Dict:
-        """
-        Tính kỳ vọng số người tham dự tại một slot
-        
-        Args:
-            user_ids: Set các user IDs cần xét
-            slot_datetime: Thời điểm slot
+        max_slots_to_analyze = min(20, len(candidate_slots))
+        slots_summary = []
+        for idx, slot in enumerate(candidate_slots[:max_slots_to_analyze]):
+            user_summaries = []
+            # CHỈ lấy 10 users để giảm context size
+            for uid in list(slot['available_users'])[:10]:
+                history = self.analyze_user_history(uid)
+                if history:
+                    user_summaries.append({
+                        'id': uid,
+                        'username': history.get('username', 'Unknown'),
+                        'club': history.get('club', 'Unknown'),
+                        'is_mentor': history.get('is_mentor', False),
+                        'total_bookings': history.get('total_bookings', 0),
+                        'attendance_rate': history.get('attendance_rate', 0.7)
+                    })
             
-        Returns:
-            Dict: {
-                'expected_count': float,
-                'probabilities': {user_id: prob},
-                'high_prob_users': [user_ids với prob > 0.7]
-            }
-        """
-        probabilities = {}
-        for user_id in user_ids:
-            prob = self.estimate_attendance_probability(user_id, slot_datetime)
-            probabilities[user_id] = prob
+            slots_summary.append({
+                'index': idx,
+                'start_time': slot['start_time'].strftime('%Y-%m-%d %H:%M'),
+                'end_time': slot['end_time'].strftime('%H:%M'),
+                'day_of_week': slot['day_of_week'],
+                'hour': slot['hour'],
+                'available_count': slot['available_count'],
+                'users': user_summaries
+            })
         
-        expected_count = sum(probabilities.values())
-        high_prob_users = [uid for uid, prob in probabilities.items() if prob > 0.7]
+        system_prompt = """Bạn là AI lập lịch họp. Phân tích và chấm điểm slots.
+        Chỉ trả về duy nhất 1 đối tượng JSON hợp lệ. Không được thêm bất kỳ JSON giải thích, văn bản hay markdown nào khác.
+
+Trả về JSON format BẮT BUỘC:
+{
+  "analysis": "1-2 câu tổng quan",
+  "slots": [
+    {"index": 0, "score": 85, "reasoning": "Lý do ngắn (max 20 từ)"}
+  ]
+}
+"""
         
-        return {
-            'expected_count': expected_count,
-            'probabilities': probabilities,
-            'high_prob_users': high_prob_users
-        }
+        user_prompt = f"""Chấm điểm {len(slots_summary)} slots sau (0-100 điểm):
+
+MỤC TIÊU: {objective}
+
+RÀNG BUỘC: {json.dumps(constraints, ensure_ascii=False) if constraints else "Không có"}
+
+SLOTS (mỗi slot có: thời gian, số người rảnh, có mentor không):
+{json.dumps(slots_summary, ensure_ascii=False)}
+
+Chỉ trả về JSON. Lý do phải ngắn (max 15 từ)."""
+        
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ],
+                temperature=0.7,
+                max_tokens=4000,  # Tăng lên 4000 để tránh truncate
+            )
+            
+            response_text = response.choices[0].message.content
+            finish_reason = response.choices[0].finish_reason
+            
+            print(f"GPT Response: {len(response_text)} chars, finish_reason={finish_reason}")
+            
+            # Kiểm tra nếu response bị truncate
+            if finish_reason == "length":
+                print(f"WARNING: Response bị truncate do length limit!")
+                print(f"Giảm số slots hoặc tăng max_tokens")
+            if response_text.startswith("```json"):
+                response_text = response_text[7:]
+                if response_text.endswith("```"):
+                    response_text = response_text[:-3]
+            # Parse JSON response
+            try:
+                result = json.loads(response_text)
+            except json.JSONDecodeError as je:
+                print(f"JSON Parse Error: {je}")
+                print(f"Raw response (first 500 chars): {response_text[:500]}")
+                print(f"Raw response (last 200 chars): ...{response_text[-200:]}")
+                raise
+            
+            print(f"GPT Analysis: {result.get('analysis', 'Done')}")
+            
+            # Áp dụng scores từ GPT vào slots
+            slot_scores = {item['index']: item for item in result.get('slots', [])}
+            
+            # Chỉ áp dụng cho số slots đã phân tích
+            for slot in candidate_slots[:max_slots_to_analyze]:
+                idx = candidate_slots.index(slot)
+                if idx in slot_scores:
+                    slot['gpt_score'] = slot_scores[idx].get('score', 50)
+                    slot['gpt_reasoning'] = slot_scores[idx].get('reasoning', 'No reasoning provided')
+                else:
+                    slot['gpt_score'] = 50  # Default score
+                    slot['gpt_reasoning'] = 'Not analyzed by GPT'
+            
+            # Các slots còn lại dùng fallback
+            for slot in candidate_slots[max_slots_to_analyze:]:
+                slot['gpt_score'] = min(slot['available_count'] * 10, 100)
+                slot['gpt_reasoning'] = f"Fallback: {slot['available_count']} người rảnh (không được phân tích bởi GPT)"
+            
+            return candidate_slots
+            
+        except json.JSONDecodeError as je:
+            print(f"JSON Decode Error: {je}")
+            print("Sử dụng fallback scoring...")
+            # Fallback: simple scoring
+            for slot in candidate_slots:
+                slot['gpt_score'] = min(slot['available_count'] * 10, 100)
+                slot['gpt_reasoning'] = f'Fallback: {slot["available_count"]} người rảnh'
+            return candidate_slots
+            
+        except Exception as e:
+            print(f"Lỗi khi gọi OpenAI API: {e}")
+            print(f"Error type: {type(e).__name__}")
+            # Fallback: simple scoring
+            for slot in candidate_slots:
+                slot['gpt_score'] = min(slot['available_count'] * 10, 100)
+                slot['gpt_reasoning'] = f'Fallback: {slot["available_count"]} người rảnh'
+            return candidate_slots
     
     # ========================================================================
     # 5. CONSTRAINT SOLVING - Giải ràng buộc đa đối tượng
@@ -434,21 +466,14 @@ class MeetingSchedulerAgent:
         return is_valid, violations
     
     # ========================================================================
-    # 6. SLOT SCORING - Chấm điểm slots theo mục tiêu
+    # 5. SLOT SCORING - Chấm điểm cơ bản (trước khi dùng GPT)
     # ========================================================================
     
     def score_slot(self, slot_datetime: datetime, duration_minutes: int,
                    available_users: Set[int], constraints: Dict,
                    objective: str = 'max_attendance') -> float:
         """
-        Chấm điểm một slot theo mục tiêu cụ thể
-        
-        Objectives:
-        - 'max_attendance': Tối đa hóa số người tham dự
-        - 'max_probability': Tối đa hóa xác suất tham dự
-        - 'fairness': Công bằng giữa các thành viên
-        - 'mentor_priority': Ưu tiên có mentor
-        - 'balanced': Cân bằng nhiều yếu tố
+        Chấm điểm cơ bản một slot (sẽ được GPT refine sau)
         
         Args:
             slot_datetime: Thời điểm slot
@@ -458,10 +483,8 @@ class MeetingSchedulerAgent:
             objective: Mục tiêu chấm điểm
             
         Returns:
-            float: Điểm số (càng cao càng tốt)
+            float: Điểm số cơ bản (0-100)
         """
-        score = 0.0
-        
         # Check constraints trước
         is_valid, violations = self.check_constraints(
             slot_datetime, duration_minutes, available_users, constraints
@@ -470,101 +493,53 @@ class MeetingSchedulerAgent:
         if not is_valid:
             return -1000.0  # Penalty lớn cho slots không thỏa constraints
         
-        # Tính expected attendance
-        attendance_data = self.calculate_expected_attendance(available_users, slot_datetime)
-        expected_count = attendance_data['expected_count']
-        avg_probability = expected_count / max(len(available_users), 1)
+        # Chấm điểm cơ bản dựa trên số người
+        score = len(available_users) * 5
         
-        # Scoring theo objective
-        if objective == 'max_attendance':
-            score += expected_count * WEIGHTS['attendance_count']
-            score += avg_probability * WEIGHTS['attendance_probability']
+        # Bonus cho time slots hợp lý
+        hour = slot_datetime.hour
+        if 9 <= hour <= 17:
+            score += 20
+        elif 7 <= hour < 9 or 17 < hour <= 19:
+            score += 10
         
-        elif objective == 'max_probability':
-            score += avg_probability * WEIGHTS['attendance_probability'] * 2
-            score += expected_count * WEIGHTS['attendance_count'] * 0.5
+        # Bonus cho ngày trong tuần
+        day = slot_datetime.weekday()
+        if day < 4:  # Mon-Thu
+            score += 15
+        elif day == 4:  # Friday
+            score += 10
         
-        elif objective == 'fairness':
-            # Tính độ công bằng: variance thấp = công bằng
-            probs = list(attendance_data['probabilities'].values())
-            if probs:
-                mean_prob = sum(probs) / len(probs)
-                variance = sum((p - mean_prob) ** 2 for p in probs) / len(probs)
-                fairness_score = 1.0 / (1.0 + variance)  # Inverse variance
-                score += fairness_score * WEIGHTS['fairness'] * 100
+        # Check mentors
+        from app.models import User
+        for uid in available_users:
+            user = User.query.get(uid)
+            if user and user.is_admin:
+                score += 20
+                break
         
-        elif objective == 'mentor_priority':
-            # Kiểm tra mentors available
-            from app.models import User
-            mentors_available = 0
-            for uid in available_users:
-                user = User.query.get(uid)
-                if user and user.is_admin:  # Giả định admin = mentor
-                    mentors_available += 1
-                    prob = attendance_data['probabilities'].get(uid, 0)
-                    score += prob * WEIGHTS['mentor_present'] * 50
-            
-            if mentors_available > 0:
-                score += WEIGHTS['mentor_present'] * 100
-        
-        else:  # 'balanced' - default
-            # Kết hợp nhiều yếu tố
-            score += expected_count * WEIGHTS['attendance_count'] * 10
-            score += avg_probability * WEIGHTS['attendance_probability'] * 20
-            
-            # Bonus cho time preference
-            hour = slot_datetime.hour
-            if 9 <= hour <= 17:  # Business hours
-                score += WEIGHTS['time_preference'] * 30
-            if 12 <= hour < 14:  # Lunch time - penalty
-                score -= 20
-            
-            # Bonus cho ngày trong tuần (T2-T5 tốt hơn T6-CN)
-            day = slot_datetime.weekday()
-            if day < 4:  # Mon-Thu
-                score += WEIGHTS['day_preference'] * 20
-            elif day == 4:  # Friday
-                score += WEIGHTS['day_preference'] * 10
-            
-            # Bonus cho mentors
-            from app.models import User
-            for uid in available_users:
-                user = User.query.get(uid)
-                if user and user.is_admin:
-                    score += WEIGHTS['mentor_present'] * 30
-                    break
-        
-        # Bonus cho required members present
-        required = set(constraints.get('required_members', []))
-        if required and required.issubset(available_users):
-            score += WEIGHTS['required_members'] * 50
-        
-        # Penalty cho slot quá xa trong tương lai
-        days_ahead = (slot_datetime.date() - datetime.now().date()).days
-        recency_penalty = days_ahead * 2
-        score -= recency_penalty * WEIGHTS['recency']
-        
-        return score
+        return min(score, 100)  # Cap at 100
     
     # ========================================================================
-    # 7. MAIN ALGORITHM - Tìm top 3 slots tốt nhất
+    # 6. MAIN ALGORITHM - Tìm top slots với GPT
     # ========================================================================
     
     def find_optimal_slots(self, duration_minutes: int = 60,
                           constraints: Optional[Dict] = None,
                           objective: str = 'balanced',
                           days_ahead: int = 14,
-                          top_n: int = 3) -> List[Dict]:
+                          top_n: int = 3,
+                          use_gpt: bool = True) -> List[Dict]:
         """
-        TÌM VÀ ĐỀ XUẤT TOP N KHUNG GIỜ TỐT NHẤT
+        TÌM VÀ ĐỀ XUẤT TOP N KHUNG GIỜ TỐT NHẤT (Powered by OpenAI GPT)
         
-        Đây là hàm chính của Agent - thực hiện toàn bộ quy trình:
+        Quy trình:
         1. Lấy dữ liệu availability từ DB
-        2. Học patterns từ lịch sử
+        2. Phân tích lịch sử bookings
         3. Build lưới availability
         4. Tìm tất cả slots khả thi
-        5. Chấm điểm theo objective
-        6. Trả về top N slots
+        5. SỬ DỤNG GPT để phân tích và chấm điểm thông minh
+        6. Trả về top N slots với reasoning từ AI
         
         Args:
             duration_minutes: Độ dài meeting (phút)
@@ -572,30 +547,25 @@ class MeetingSchedulerAgent:
             objective: Mục tiêu ('max_attendance', 'fairness', 'mentor_priority', 'balanced')
             days_ahead: Số ngày trong tương lai để xét
             top_n: Số lượng slots đề xuất
+            use_gpt: Có sử dụng GPT để phân tích hay không (default True)
             
         Returns:
-            List[Dict]: Top N slots với đầy đủ thông tin
+            List[Dict]: Top N slots với đầy đủ thông tin và reasoning từ GPT
         """
         if constraints is None:
             constraints = {}
         
         # 1. Lấy dữ liệu
-        print("🔍 Đang lấy dữ liệu từ database...")
+        print("Đang lấy dữ liệu từ database...")
         all_availabilities = self.get_all_user_availability()
-        self.get_booking_history()  # Load history để học pattern
+        self.get_booking_history()  # Load history
         
-        # 2. Học patterns cho tất cả users
-        print("🧠 Đang học patterns từ lịch sử...")
-        all_users = self.get_all_users()
-        for user in all_users:
-            self.learn_user_patterns(user.id)
-        
-        # 3. Build availability grid
-        print("📊 Đang xây dựng lưới availability...")
+        # 2. Build availability grid
+        print("Đang xây dựng lưới availability...")
         grid = self.build_availability_grid(all_availabilities, days_ahead)
         
-        # 4. Tìm tất cả candidate slots
-        print("🔎 Đang tìm kiếm slots khả thi...")
+        # 3. Tìm tất cả candidate slots
+        print("Đang tìm kiếm slots khả thi...")
         candidate_slots = []
         today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
         
@@ -625,36 +595,48 @@ class MeetingSchedulerAgent:
                 if not is_valid:
                     continue
                 
-                # Chấm điểm slot
-                score = self.score_slot(
+                # Chấm điểm cơ bản
+                basic_score = self.score_slot(
                     slot_start, duration_minutes, available_users, constraints, objective
                 )
-                
-                # Tính thông tin chi tiết
-                attendance_data = self.calculate_expected_attendance(available_users, slot_start)
                 
                 candidate_slots.append({
                     'start_time': slot_start,
                     'end_time': slot_end,
-                    'score': score,
+                    'basic_score': basic_score,
                     'available_users': list(available_users),
                     'available_count': len(available_users),
-                    'expected_attendance': attendance_data['expected_count'],
-                    'attendance_probabilities': attendance_data['probabilities'],
-                    'high_probability_users': attendance_data['high_prob_users'],
                     'date': date_str,
                     'hour': hour,
                     'day_of_week': slot_start.weekday(),
                     'objective': objective
                 })
         
-        # 5. Sắp xếp và lấy top N
-        print(f"⭐ Đang xếp hạng {len(candidate_slots)} slots...")
-        sorted_slots = sorted(candidate_slots, key=lambda x: x['score'], reverse=True)
+        if not candidate_slots:
+            print("Không tìm thấy slots khả thi nào!")
+            return []
+        
+        print(f"Tìm thấy {len(candidate_slots)} slots khả thi")
+        
+        # 4. Sử dụng GPT để phân tích (nếu enabled)
+        if use_gpt and len(candidate_slots) > 0:
+            candidate_slots = self.ask_gpt_to_analyze_slots(
+                candidate_slots, constraints, objective
+            )
+            # Sắp xếp theo GPT score
+            sorted_slots = sorted(candidate_slots, key=lambda x: x.get('gpt_score', 0), reverse=True)
+        else:
+            # Fallback: sắp xếp theo basic score
+            sorted_slots = sorted(candidate_slots, key=lambda x: x['basic_score'], reverse=True)
+            for slot in sorted_slots:
+                slot['gpt_score'] = slot['basic_score']
+                slot['gpt_reasoning'] = 'Basic scoring (GPT disabled)'
+        
+        # 5. Lấy top N
         top_slots = sorted_slots[:top_n]
         
-        # 6. Enrich thông tin cho user
-        print(f"✅ Tìm thấy {len(top_slots)} slots tốt nhất!")
+        # 6. Enrich thông tin
+        print(f"Đề xuất {len(top_slots)} slots tốt nhất!")
         return self._enrich_slot_info(top_slots)
     
     def _is_continuous_slot(self, grid: Dict, start_time: datetime, end_time: datetime) -> bool:
@@ -724,7 +706,7 @@ class MeetingSchedulerAgent:
             slots: List slots cần enrich
             
         Returns:
-            List[Dict]: Slots đã được enrich
+            List[Dict]: Slots đã được enrich với GPT reasoning
         """
         from app.models import User
         
@@ -735,13 +717,13 @@ class MeetingSchedulerAgent:
             for uid in slot['available_users']:
                 user = User.query.get(uid)
                 if user:
-                    prob = slot['attendance_probabilities'].get(uid, 0)
+                    history = self.analyze_user_history(uid)
                     user_details.append({
                         'id': uid,
                         'username': user.username,
                         'club': user.club,
                         'is_mentor': user.is_admin,
-                        'attendance_probability': round(prob, 2)
+                        'attendance_rate': round(history.get('attendance_rate', 0.7), 2)
                     })
             
             # Format datetime
@@ -750,180 +732,195 @@ class MeetingSchedulerAgent:
             day_names = ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ nhật']
             day_name = day_names[slot['day_of_week']]
             
+            # Tính expected attendance (trung bình attendance_rate của tất cả users)
+            if user_details:
+                avg_attendance_rate = sum(u['attendance_rate'] for u in user_details) / len(user_details)
+                expected_attendance = len(user_details) * avg_attendance_rate
+            else:
+                avg_attendance_rate = 0
+                expected_attendance = 0
+            
             enriched.append({
                 **slot,
                 'start_time_str': start_str,
                 'end_time_str': end_str,
                 'day_name': day_name,
-                'user_details': sorted(user_details, key=lambda x: x['attendance_probability'], reverse=True),
+                'user_details': sorted(user_details, key=lambda x: x['attendance_rate'], reverse=True),
                 'mentor_count': sum(1 for u in user_details if u['is_mentor']),
-                'score_rounded': round(slot['score'], 2),
-                'expected_attendance_rounded': round(slot['expected_attendance'], 1)
+                'gpt_score_rounded': round(slot.get('gpt_score', 0), 2),
+                'ai_reasoning': slot.get('gpt_reasoning', 'No AI analysis available'),
+                'expected_attendance': expected_attendance,
+                'expected_attendance_rounded': round(expected_attendance, 1),
+                'avg_attendance_rate': round(avg_attendance_rate * 100, 1) if user_details else 0
             })
         
         return enriched
     
     # ========================================================================
-    # 8. ONE-CLICK POLL - Tạo poll tự động với 3 slots tốt nhất
+    # 7. ONE-CLICK POLL - Tạo poll với GPT
     # ========================================================================
     
     def create_smart_poll(self, meeting_title: str, duration_minutes: int = 60,
                          constraints: Optional[Dict] = None,
-                         objectives: Optional[List[str]] = None) -> Dict:
+                         objectives: Optional[List[str]] = None,
+                         use_gpt: bool = True) -> Dict:
         """
-        TẠO POLL "1 CHẠM" với 3 khung giờ tốt nhất theo các mục tiêu khác nhau
+        TẠO POLL "1 CHẠM" với 3 khung giờ tốt nhất (Powered by GPT)
         
-        Mặc định sẽ đề xuất 3 slots với 3 objectives:
-        1. Max attendance (đông người nhất)
-        2. Balanced (cân bằng)
-        3. Mentor priority (ưu tiên mentor)
+        Mặc định: đề xuất 3 slots tốt nhất dựa trên objective 'balanced'
         
         Args:
             meeting_title: Tiêu đề meeting
             duration_minutes: Độ dài meeting
             constraints: Các ràng buộc
-            objectives: List objectives (nếu muốn custom)
+            objectives: List objectives (deprecated - chỉ dùng 'balanced')
+            use_gpt: Có sử dụng GPT hay không
             
         Returns:
-            Dict: Poll data với 3 options tốt nhất
+            Dict: Poll data với 3 options tốt nhất + AI reasoning
         """
         if constraints is None:
             constraints = {}
         
-        if objectives is None:
-            objectives = ['max_attendance', 'balanced', 'mentor_priority']
-        
         print(f"\n{'='*70}")
-        print(f"🎯 TẠO POLL THÔNG MINH: {meeting_title}")
-        print(f"⏱️  Thời lượng: {duration_minutes} phút")
+        print(f"TẠO POLL THÔNG MINH (GPT Powered): {meeting_title}")
+        print(f"Thời lượng: {duration_minutes} phút")
         print(f"{'='*70}\n")
         
-        all_suggestions = []
+        # Tìm top 3 slots với 'balanced' objective
+        slots = self.find_optimal_slots(
+            duration_minutes=duration_minutes,
+            constraints=constraints,
+            objective='balanced',
+            top_n=3,
+            use_gpt=use_gpt
+        )
         
-        # Tìm top slot cho mỗi objective
-        for objective in objectives:
-            print(f"\n--- Objective: {objective.upper()} ---")
-            slots = self.find_optimal_slots(
-                duration_minutes=duration_minutes,
-                constraints=constraints,
-                objective=objective,
-                top_n=1  # Chỉ lấy 1 slot tốt nhất cho mỗi objective
-            )
-            
-            if slots:
-                slot = slots[0]
-                slot['objective_type'] = objective
-                all_suggestions.append(slot)
+        if not slots:
+            print("Không tìm thấy slots phù hợp!")
+            return {
+                'title': meeting_title,
+                'duration_minutes': duration_minutes,
+                'created_at': datetime.now().isoformat(),
+                'constraints': constraints,
+                'options': [],
+                'recommendation': 'Không tìm thấy khung giờ phù hợp. Vui lòng điều chỉnh constraints.'
+            }
         
-        # Đảm bảo 3 slots unique (không trùng thời gian)
-        unique_slots = []
-        seen_times = set()
-        
-        for slot in all_suggestions:
-            time_key = slot['start_time_str']
-            if time_key not in seen_times:
-                unique_slots.append(slot)
-                seen_times.add(time_key)
-        
-        # Nếu chưa đủ 3 slots, tìm thêm với balanced objective
-        while len(unique_slots) < 3:
-            extra_slots = self.find_optimal_slots(
-                duration_minutes=duration_minutes,
-                constraints=constraints,
-                objective='balanced',
-                top_n=10
-            )
-            
-            for slot in extra_slots:
-                time_key = slot['start_time_str']
-                if time_key not in seen_times:
-                    slot['objective_type'] = 'balanced'
-                    unique_slots.append(slot)
-                    seen_times.add(time_key)
-                    if len(unique_slots) >= 3:
-                        break
-            
-            if len(extra_slots) == 0:
-                break  # Không còn slots nào khả thi
+        # Generate overall recommendation using GPT
+        recommendation = self._generate_gpt_recommendation(slots, meeting_title, constraints)
         
         poll_data = {
             'title': meeting_title,
             'duration_minutes': duration_minutes,
             'created_at': datetime.now().isoformat(),
             'constraints': constraints,
-            'options': unique_slots[:3],  # Top 3
-            'recommendation': self._generate_recommendation(unique_slots[:3])
+            'options': slots,
+            'recommendation': recommendation,
+            'powered_by': 'OpenAI GPT'
         }
         
         self._print_poll_summary(poll_data)
         
         return poll_data
     
-    def _generate_recommendation(self, slots: List[Dict]) -> str:
+    def _generate_gpt_recommendation(self, slots: List[Dict], 
+                                     meeting_title: str, 
+                                     constraints: Dict) -> str:
         """
-        Tạo recommendation text cho poll
+        Sử dụng GPT để tạo recommendation tổng quan cho poll
         
         Args:
-            slots: List 3 slots đề xuất
+            slots: List slots đề xuất
+            meeting_title: Tiêu đề cuộc họp
+            constraints: Các ràng buộc
             
         Returns:
-            str: Recommendation message
+            str: Recommendation message từ GPT
         """
         if not slots:
             return "Không tìm thấy slot phù hợp. Vui lòng thử lại với constraints khác."
         
-        best = slots[0]
-        
-        rec = f"💡 Khuyến nghị: {best['start_time_str']} ({best['day_name']})\n"
-        rec += f"   - Kỳ vọng {best['expected_attendance_rounded']} người tham dự\n"
-        rec += f"   - {best['available_count']} người available\n"
-        rec += f"   - {best['mentor_count']} mentor có thể tham gia\n"
-        rec += f"   - Điểm số: {best['score_rounded']}\n"
-        
-        return rec
+        try:
+            prompt = f"""Bạn là trợ lý AI chuyên lập lịch họp. Hãy tạo một recommendation ngắn gọn (2-3 câu) 
+cho cuộc họp "{meeting_title}" dựa trên 3 khung giờ sau:
+
+1. {slots[0]['start_time_str']} ({slots[0]['day_name']}) - {slots[0]['available_count']} người rảnh
+   GPT Score: {slots[0]['gpt_score_rounded']}/100
+   Lý do: {slots[0]['ai_reasoning']}
+
+2. {slots[1]['start_time_str']} ({slots[1]['day_name']}) - {slots[1]['available_count']} người rảnh
+   GPT Score: {slots[1]['gpt_score_rounded']}/100
+   Lý do: {slots[1]['ai_reasoning']}
+
+3. {slots[2]['start_time_str']} ({slots[2]['day_name']}) - {slots[2]['available_count']} người rảnh
+   GPT Score: {slots[2]['gpt_score_rounded']}/100
+   Lý do: {slots[2]['ai_reasoning']}
+
+Hãy đưa ra khuyến nghị ngắn gọn về slot nào tốt nhất và tại sao."""
+
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": "Bạn là trợ lý AI chuyên lập lịch họp. Trả lời ngắn gọn, súc tích."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.7,
+                max_tokens=200
+            )
+            
+            return response.choices[0].message.content.strip()
+            
+        except Exception as e:
+            print(f"Lỗi khi tạo recommendation: {e}")
+            best = slots[0]
+            return f"Khuyến nghị: {best['start_time_str']} ({best['day_name']}) - {best['available_count']} người rảnh, điểm {best['gpt_score_rounded']}/100"
     
     def _print_poll_summary(self, poll_data: Dict):
-        """In summary của poll ra console"""
+        """In summary của poll ra console (GPT powered)"""
         print(f"\n{'='*70}")
-        print(f"📊 POLL TỰ ĐỘNG: {poll_data['title']}")
+        print(f"POLL TỰ ĐỘNG (GPT Powered): {poll_data['title']}")
         print(f"{'='*70}")
         
         for i, option in enumerate(poll_data['options'], 1):
-            print(f"\n🎯 Option {i}: {option['start_time_str']} - {option['end_time_str']}")
-            print(f"   📅 {option['day_name']}")
-            print(f"   👥 Available: {option['available_count']} | Kỳ vọng: {option['expected_attendance_rounded']}")
-            print(f"   🎓 Mentors: {option['mentor_count']}")
-            print(f"   ⭐ Score: {option['score_rounded']}")
-            print(f"   🎯 Objective: {option['objective_type']}")
+            print(f"\nOption {i}: {option['start_time_str']} - {option['end_time_str']}")
+            print(f"   {option['day_name']}")
+            print(f"   Available: {option['available_count']} người")
+            print(f"   Mentors: {option['mentor_count']}")
+            print(f"   AI Score: {option['gpt_score_rounded']}/100")
+            print(f"   AI Reasoning: {option['ai_reasoning']}")
             
-            # Top 5 users có xác suất cao nhất
+            # Top 5 users có attendance rate cao nhất
             top_users = option['user_details'][:5]
-            print(f"   👤 Top attendees:")
+            print(f"   Top users:")
             for user in top_users:
-                prob_percent = int(user['attendance_probability'] * 100)
-                mentor_badge = "🎓" if user['is_mentor'] else "  "
-                print(f"      {mentor_badge} {user['username']} ({user['club']}) - {prob_percent}%")
+                rate_percent = int(user['attendance_rate'] * 100)
+                mentor_badge = "[M]" if user['is_mentor'] else "   "
+                print(f"      {mentor_badge} {user['username']} ({user['club']}) - {rate_percent}% attendance")
         
-        print(f"\n{poll_data['recommendation']}")
-        print(f"{'='*70}\n")
+        print(f"\nAI RECOMMENDATION:")
+        print(f"   {poll_data['recommendation']}")
+        print(f"\n{'='*70}\n")
 
 
 # ============================================================================
 # HELPER FUNCTIONS
 # ============================================================================
 
-def create_agent(db_session=None):
+def create_agent(db_session=None, api_key=None, model=None):
     """
-    Factory function để tạo agent instance
+    Factory function để tạo agent instance với OpenAI
     
     Args:
         db_session: SQLAlchemy session (optional, sẽ dùng current nếu None)
+        api_key: OpenAI API key (optional, sẽ lấy từ config nếu None)
+        model: Model name (optional, default gpt-4o-mini)
         
     Returns:
-        MeetingSchedulerAgent: Agent instance
+        MeetingSchedulerAgent: Agent instance powered by OpenAI
     """
     if db_session is None:
         from app.models import db
         db_session = db.session
     
-    return MeetingSchedulerAgent(db_session)
+    return MeetingSchedulerAgent(db_session, api_key=api_key, model=model)

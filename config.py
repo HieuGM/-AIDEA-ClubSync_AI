@@ -10,6 +10,8 @@ class Config:
         'sqlite:///' + os.path.join(basedir, 'clubsync.db')
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     
-    # AI Integration settings for future use
+    # NVIDIA API Configuration
     AI_API_KEY = os.environ.get('AI_API_KEY')
-    AI_MODEL = os.environ.get('AI_MODEL') or 'gpt-3.5-turbo'
+    AI_MODEL = os.environ.get('AI_MODEL') or 'meta/llama3-8b-instruct'
+    AI_TEMPERATURE = float(os.environ.get('AI_TEMPERATURE', '0.7'))
+    AI_MAX_TOKENS = int(os.environ.get('AI_MAX_TOKENS', '4000'))  # Tăng lên 4000

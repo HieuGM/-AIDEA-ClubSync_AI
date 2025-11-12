@@ -473,7 +473,7 @@ function displaySlotResults(slots, objective) {
                             </div>
                             <div class="col-6">
                                 <div class="text-center p-2 bg-light rounded">
-                                    <h3 class="mb-0 text-success">${slot.expected_attendance}</h3>
+                                    <h3 class="mb-0 text-success">${slot.expected_attendance || slot.available_count}</h3>
                                     <small class="text-muted">Kỳ vọng tham dự</small>
                                 </div>
                             </div>
@@ -495,7 +495,7 @@ function displaySlotResults(slots, objective) {
                                     ${user.is_mentor ? '<i class="bi bi-mortarboard-fill text-primary"></i>' : '<i class="bi bi-person"></i>'}
                                     <strong>${user.username}</strong>
                                     <span class="badge bg-secondary">${user.club}</span>
-                                    <span class="ms-2 text-success">${Math.round(user.attendance_probability * 100)}%</span>
+                                    <span class="ms-2 text-success">${Math.round(user.attendance_rate * 100)}%</span>
                                 </li>
                             `).join('')}
                             ${slot.user_details.length > 5 ? `
@@ -580,7 +580,7 @@ function displayPollResults(poll) {
                             </div>
                             <div class="d-flex justify-content-between mb-1">
                                 <small>Kỳ vọng:</small>
-                                <strong class="text-success">${option.expected_attendance}</strong>
+                                <strong class="text-success">${option.expected_attendance || option.available_count}</strong>
                             </div>
                             <div class="d-flex justify-content-between mb-1">
                                 <small>Mentors:</small>

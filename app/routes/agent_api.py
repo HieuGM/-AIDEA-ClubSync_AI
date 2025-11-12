@@ -76,11 +76,13 @@ def suggest_slots():
                 'start_time_str': slot['start_time_str'],
                 'end_time_str': slot['end_time_str'],
                 'day_name': slot['day_name'],
-                'score': slot['score_rounded'],
+                'score': slot.get('gpt_score_rounded', 0),
                 'available_count': slot['available_count'],
-                'expected_attendance': slot['expected_attendance_rounded'],
+                'expected_attendance': slot.get('expected_attendance_rounded', 0),
+                'avg_attendance_rate': slot.get('avg_attendance_rate', 0),
                 'mentor_count': slot['mentor_count'],
-                'objective': slot['objective'],
+                'objective': slot.get('objective', 'balanced'),
+                'ai_reasoning': slot.get('ai_reasoning', ''),
                 'user_details': slot['user_details']
             }
             serializable_slots.append(serializable_slot)
@@ -158,11 +160,12 @@ def create_poll():
                 'start_time_str': option['start_time_str'],
                 'end_time_str': option['end_time_str'],
                 'day_name': option['day_name'],
-                'score': option['score_rounded'],
+                'score': option.get('gpt_score_rounded', 0),
                 'available_count': option['available_count'],
-                'expected_attendance': option['expected_attendance_rounded'],
+                'expected_attendance': option.get('expected_attendance_rounded', 0),
+                'avg_attendance_rate': option.get('avg_attendance_rate', 0),
                 'mentor_count': option['mentor_count'],
-                'objective_type': option['objective_type'],
+                'ai_reasoning': option.get('ai_reasoning', ''),
                 'user_details': option['user_details']
             }
             serializable_poll['options'].append(serializable_option)
@@ -329,7 +332,7 @@ def analyze_constraints():
         
         analysis = {
             'total_feasible_slots': len(slots),
-            'best_score': slots[0]['score_rounded'] if slots else 0,
+            'best_score': slots[0].get('gpt_score_rounded', 0) if slots else 0,
             'recommendations': []
         }
         
@@ -344,9 +347,9 @@ def analyze_constraints():
                 )
             
             best_slot = slots[0]
-            if best_slot['expected_attendance'] < constraints.get('min_attendees', 0):
+            if best_slot['available_count'] < constraints.get('min_attendees', 0):
                 analysis['recommendations'].append(
-                    f"Expected attendance ({best_slot['expected_attendance_rounded']}) "
+                    f"Available count ({best_slot['available_count']}) "
                     f"may not meet minimum requirement ({constraints.get('min_attendees')})"
                 )
         
@@ -357,8 +360,8 @@ def analyze_constraints():
             'sample_slots': [
                 {
                     'start_time_str': s['start_time_str'],
-                    'score': s['score_rounded'],
-                    'expected_attendance': s['expected_attendance_rounded']
+                    'score': s.get('gpt_score_rounded', 0),
+                    'available_count': s['available_count']
                 }
                 for s in slots[:3]
             ]
