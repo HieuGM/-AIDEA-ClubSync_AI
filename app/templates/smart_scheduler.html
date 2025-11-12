@@ -256,6 +256,7 @@ async function findOptimalSlots() {
     bootstrap.Modal.getInstance(document.getElementById('slotFinderModal')).hide();
 
     try {
+        console.log('Sending request to AI Agent...');
         const response = await fetch('/api/agent/suggest-slots', {
             method: 'POST',
             headers: {
@@ -270,16 +271,27 @@ async function findOptimalSlots() {
             })
         });
 
+        console.log('Response status:', response.status);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
         const data = await response.json();
+        console.log('Response data:', data);
         
         if (data.success) {
+            console.log('Success! Displaying', data.slots.length, 'slots');
             displaySlotResults(data.slots, objective);
         } else {
-            alert('Lỗi: ' + data.error);
+            console.error('API returned success=false:', data.error);
+            alert('Lỗi: ' + (data.error || 'Unknown error'));
         }
     } catch (error) {
-        console.error('Error:', error);
-        alert('Không thể kết nối với AI Agent. Vui lòng thử lại!');
+        console.error('Fetch error:', error);
+        console.error('Error type:', error.constructor.name);
+        console.error('Error message:', error.message);
+        alert('Không thể kết nối với AI Agent.\n\nChi tiết: ' + error.message + '\n\nVui lòng mở Console (F12) để xem log!');
     } finally {
         document.getElementById('loadingOverlay').style.display = 'none';
     }
@@ -287,10 +299,12 @@ async function findOptimalSlots() {
 
 // Display Slot Results
 function displaySlotResults(slots, objective) {
-    const resultsArea = document.getElementById('resultsArea');
-    const resultsContent = document.getElementById('resultsContent');
+    try {
+        console.log('displaySlotResults called with', slots.length, 'slots');
+        const resultsArea = document.getElementById('resultsArea');
+        const resultsContent = document.getElementById('resultsContent');
 
-    if (!slots || slots.length === 0) {
+        if (!slots || slots.length === 0) {
         resultsContent.innerHTML = `
             <div class="alert alert-warning">
                 <i class="bi bi-exclamation-triangle"></i>
@@ -394,7 +408,7 @@ function displaySlotResults(slots, objective) {
                             <button class="btn btn-${rankBadge}" onclick="useThisSlot('${slot.start_time}', '${slot.end_time}')">
                                 <i class="bi bi-check-circle"></i> Chọn slot này
                             </button>
-                            <button class="btn btn-outline-${rankBadge}" onclick="showBusyUsers('${slot.start_time}', ${slot.available_count + (20 - slot.available_count)})">
+                            <button class="btn btn-outline-${rankBadge}" onclick="showBusyUsers('${slot.start_time}', ${slot.duration_minutes || 60})">
                                 <i class="bi bi-person-x"></i> Xem danh sách người bận
                             </button>
                         </div>
@@ -409,6 +423,12 @@ function displaySlotResults(slots, objective) {
     resultsContent.innerHTML = html;
     resultsArea.style.display = 'block';
     resultsArea.scrollIntoView({ behavior: 'smooth' });
+    console.log('Results displayed successfully!');
+    
+    } catch (error) {
+        console.error('Error in displaySlotResults:', error);
+        alert('Lỗi khi hiển thị kết quả: ' + error.message);
+    }
 }
 
 // Use selected slot - redirect to booking form

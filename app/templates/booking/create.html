@@ -157,22 +157,33 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         
+        const roomName = roomSelect.options[roomSelect.selectedIndex].text;
+        console.log('[DEBUG] Checking availability for:', {
+            room_id: roomSelect.value,
+            room_name: roomName,
+            start: startTime.value,
+            end: endTime.value
+        });
+        
         const params = new URLSearchParams({
             room_id: roomSelect.value,
             start: new Date(startTime.value).toISOString(),
             end: new Date(endTime.value).toISOString()
         });
         
+        console.log('[DEBUG] Request URL:', `{{ url_for("api.check_availability") }}?${params}`);
+        
         fetch(`{{ url_for("api.check_availability") }}?${params}`)
             .then(response => response.json())
             .then(data => {
+                console.log('[DEBUG] Availability response:', data);
                 availabilityDiv.style.display = 'block';
                 
                 if (data.available) {
                     availabilityDiv.innerHTML = `
                         <div class="alert alert-success">
                             <i class="bi bi-check-circle"></i>
-                            <strong>Tuyệt vời!</strong> Phòng này còn trống trong thời gian bạn chọn.
+                            <strong>Tuyệt vời!</strong> ${data.room_name || 'Phòng này'} còn trống trong thời gian bạn chọn.
                         </div>
                     `;
                 } else {
@@ -183,7 +194,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     availabilityDiv.innerHTML = `
                         <div class="alert alert-warning">
                             <i class="bi bi-exclamation-triangle"></i>
-                            <strong>Phòng đã được đặt!</strong> Có ${data.conflicts.length} lịch trùng:
+                            <strong>${data.room_name || 'Phòng này'} đã được đặt!</strong> Có ${data.conflicts.length} lịch trùng:
                             <ul class="mt-2 mb-0">${conflictsList}</ul>
                         </div>
                     `;

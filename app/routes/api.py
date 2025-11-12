@@ -45,12 +45,29 @@ def check_availability():
         return jsonify({'error': 'Missing parameters'}), 400
     
     try:
+        # Parse datetime - remove timezone info for consistent comparison
         start_time = datetime.fromisoformat(start_str.replace('Z', '+00:00'))
         end_time = datetime.fromisoformat(end_str.replace('Z', '+00:00'))
-    except ValueError:
-        return jsonify({'error': 'Invalid datetime format'}), 400
+        
+        # Convert to naive datetime (remove timezone) to match DB format
+        if start_time.tzinfo is not None:
+            start_time = start_time.replace(tzinfo=None)
+        if end_time.tzinfo is not None:
+            end_time = end_time.replace(tzinfo=None)
+            
+    except ValueError as e:
+        return jsonify({'error': f'Invalid datetime format: {str(e)}'}), 400
     
-    # Check for conflicts
+    # Get room info for debugging
+    room = Room.query.get(room_id)
+    if not room:
+        return jsonify({'error': f'Room with ID {room_id} not found'}), 404
+    
+    # Debug: Log query parameters
+    print(f"[DEBUG] Checking availability for room_id={room_id} ({room.name}), start={start_time}, end={end_time}")
+    
+    # Check for conflicts - find bookings that overlap with the requested time
+    # Two time ranges overlap if: start1 < end2 AND end1 > start2
     conflicts = Booking.query.filter(
         Booking.room_id == room_id,
         Booking.start_time < end_time,
@@ -58,9 +75,19 @@ def check_availability():
         Booking.status == 'confirmed'
     ).all()
     
+    # Debug: Log found conflicts
+    print(f"[DEBUG] Found {len(conflicts)} conflicts for room '{room.name}'")
+    for conflict in conflicts:
+        print(f"[DEBUG] - {conflict.title} | {conflict.start_time} - {conflict.end_time}")
+    
+    # Also log all bookings for this room (for debugging)
+    all_room_bookings = Booking.query.filter_by(room_id=room_id, status='confirmed').all()
+    print(f"[DEBUG] Total bookings for room '{room.name}': {len(all_room_bookings)}")
+    
     return jsonify({
         'available': len(conflicts) == 0,
-        'conflicts': [booking.to_calendar_event() for booking in conflicts]
+        'conflicts': [booking.to_calendar_event() for booking in conflicts],
+        'room_name': room.name  # Add room name for debugging
     })
 
 @bp.route('/availability', methods=['GET', 'POST'])
@@ -106,9 +133,11 @@ def get_stats():
     # Total bookings by club
     from sqlalchemy import func
     club_stats = db.session.query(
-        Booking.user.has(User.club),
+        User.club,
         func.count(Booking.id)
-    ).join(User).filter(Booking.status == 'confirmed').group_by(User.club).all()
+    ).join(User, Booking.user_id == User.id).filter(
+        Booking.status == 'confirmed'
+    ).group_by(User.club).all()
     
     # Room utilization
     room_stats = db.session.query(

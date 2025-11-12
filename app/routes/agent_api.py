@@ -70,12 +70,16 @@ def suggest_slots():
         # Convert datetime objects to strings for JSON
         serializable_slots = []
         for slot in slots:
+            # Calculate duration from start and end time
+            slot_duration = int((slot['end_time'] - slot['start_time']).total_seconds() / 60)
+            
             serializable_slot = {
                 'start_time': slot['start_time'].isoformat(),
                 'end_time': slot['end_time'].isoformat(),
                 'start_time_str': slot['start_time_str'],
                 'end_time_str': slot['end_time_str'],
                 'day_name': slot['day_name'],
+                'duration_minutes': slot_duration,  # Thêm duration
                 'score': slot.get('gpt_score_rounded', 0),
                 'available_count': slot['available_count'],
                 'expected_attendance': slot.get('expected_attendance_rounded', 0),
