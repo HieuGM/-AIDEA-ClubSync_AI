@@ -115,16 +115,39 @@ document.addEventListener('DOMContentLoaded', function() {
     const checkBtn = document.getElementById('checkAvailability');
     const availabilityDiv = document.getElementById('availabilityCheck');
     
-    // Set default times if date parameter is provided
+    // Set default times from URL parameters (AI Smart Scheduler or calendar)
     const urlParams = new URLSearchParams(window.location.search);
-    const selectedDate = urlParams.get('date');
-    if (selectedDate) {
-        const now = new Date();
-        const nextHour = new Date(selectedDate + 'T' + String(now.getHours() + 1).padStart(2, '0') + ':00');
-        const hourAfter = new Date(nextHour.getTime() + 60 * 60 * 1000);
+    
+    // Check if start and end times are provided (from AI Smart Scheduler)
+    const startParam = urlParams.get('start');
+    const endParam = urlParams.get('end');
+    
+    if (startParam && endParam) {
+        // From AI Smart Scheduler - already in correct format (YYYY-MM-DDTHH:mm)
+        startTime.value = startParam;
+        endTime.value = endParam;
         
-        startTime.value = nextHour.toISOString().slice(0, 16);
-        endTime.value = hourAfter.toISOString().slice(0, 16);
+        // Show success message
+        const successMsg = document.createElement('div');
+        successMsg.className = 'alert alert-success alert-dismissible fade show mb-3';
+        successMsg.innerHTML = `
+            <i class="bi bi-robot"></i>
+            <strong>AI đã chọn thời gian tối ưu!</strong>
+            Thời gian đã được điền sẵn từ AI Smart Scheduler.
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        document.querySelector('.card-body form').insertAdjacentElement('afterbegin', successMsg);
+    } else {
+        // Check if date parameter is provided (from calendar)
+        const selectedDate = urlParams.get('date');
+        if (selectedDate) {
+            const now = new Date();
+            const nextHour = new Date(selectedDate + 'T' + String(now.getHours() + 1).padStart(2, '0') + ':00');
+            const hourAfter = new Date(nextHour.getTime() + 60 * 60 * 1000);
+            
+            startTime.value = nextHour.toISOString().slice(0, 16);
+            endTime.value = hourAfter.toISOString().slice(0, 16);
+        }
     }
     
     // Check availability

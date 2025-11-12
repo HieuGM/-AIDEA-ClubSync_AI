@@ -413,13 +413,18 @@ function displaySlotResults(slots, objective) {
 
 // Use selected slot - redirect to booking form
 function useThisSlot(startTime, endTime) {
+    // Format datetime to local datetime-local format (YYYY-MM-DDTHH:mm)
     const start = new Date(startTime);
     const end = new Date(endTime);
     
+    // Convert to local datetime string format for datetime-local input
+    const startStr = start.toISOString().slice(0, 16);
+    const endStr = end.toISOString().slice(0, 16);
+    
     // Redirect to booking form with pre-filled times
     const url = new URL('{{ url_for("booking.create") }}', window.location.origin);
-    url.searchParams.set('start', start.toISOString());
-    url.searchParams.set('end', end.toISOString());
+    url.searchParams.set('start', startStr);
+    url.searchParams.set('end', endStr);
     
     window.location.href = url.toString();
 }
