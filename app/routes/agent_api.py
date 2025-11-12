@@ -100,89 +100,6 @@ def suggest_slots():
         }), 500
 
 
-@bp.route('/create-poll', methods=['POST'])
-@login_required
-def create_poll():
-    """
-    API để tạo poll "1 chạm" với 3 slots tốt nhất
-    
-    Request JSON:
-    {
-        "meeting_title": "Weekly Standup",
-        "duration_minutes": 60,
-        "constraints": {
-            "required_members": [1, 2],
-            "min_attendees": 5
-        },
-        "objectives": ["max_attendance", "balanced", "mentor_priority"]
-    }
-    
-    Response:
-    {
-        "success": true,
-        "poll": {
-            "title": "Weekly Standup",
-            "options": [...],
-            "recommendation": "..."
-        }
-    }
-    """
-    try:
-        data = request.get_json()
-        
-        meeting_title = data.get('meeting_title', 'Team Meeting')
-        duration_minutes = data.get('duration_minutes', 60)
-        constraints = data.get('constraints', {})
-        objectives = data.get('objectives', None)
-        
-        # Create agent and generate poll
-        agent = create_agent(db.session)
-        poll_data = agent.create_smart_poll(
-            meeting_title=meeting_title,
-            duration_minutes=duration_minutes,
-            constraints=constraints,
-            objectives=objectives
-        )
-        
-        # Serialize datetime objects
-        serializable_poll = {
-            'title': poll_data['title'],
-            'duration_minutes': poll_data['duration_minutes'],
-            'created_at': poll_data['created_at'],
-            'recommendation': poll_data['recommendation'],
-            'options': []
-        }
-        
-        for option in poll_data['options']:
-            serializable_option = {
-                'start_time': option['start_time'].isoformat(),
-                'end_time': option['end_time'].isoformat(),
-                'start_time_str': option['start_time_str'],
-                'end_time_str': option['end_time_str'],
-                'day_name': option['day_name'],
-                'score': option.get('gpt_score_rounded', 0),
-                'available_count': option['available_count'],
-                'expected_attendance': option.get('expected_attendance_rounded', 0),
-                'avg_attendance_rate': option.get('avg_attendance_rate', 0),
-                'mentor_count': option['mentor_count'],
-                'ai_reasoning': option.get('ai_reasoning', ''),
-                'user_details': option['user_details']
-            }
-            serializable_poll['options'].append(serializable_option)
-        
-        return jsonify({
-            'success': True,
-            'poll': serializable_poll,
-            'message': 'Poll created successfully'
-        })
-        
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-
 @bp.route('/user-patterns/<int:user_id>', methods=['GET'])
 @login_required
 def get_user_patterns(user_id):
@@ -390,5 +307,69 @@ def health_check():
     except Exception as e:
         return jsonify({
             'status': 'unhealthy',
+            'error': str(e)
+        }), 500
+
+
+@bp.route('/busy-users', methods=['POST'])
+@login_required
+def get_busy_users():
+    """
+    API để xem ai rảnh và ai bận cho một khung giờ cụ thể
+    
+    Request JSON:
+    {
+        "slot_datetime": "2025-11-13T14:00:00",
+        "duration_minutes": 60
+    }
+    
+    Response:
+    {
+        "success": true,
+        "data": {
+            "slot_start": "2025-11-13 14:00",
+            "slot_end": "15:00",
+            "duration_minutes": 60,
+            "available_users": [...],
+            "busy_users": [...],
+            "total_users": 20,
+            "available_count": 12,
+            "busy_count": 8
+        }
+    }
+    """
+    try:
+        data = request.get_json()
+        
+        slot_datetime_str = data.get('slot_datetime')
+        duration_minutes = data.get('duration_minutes', 60)
+        
+        if not slot_datetime_str:
+            return jsonify({
+                'success': False,
+                'error': 'Missing slot_datetime'
+            }), 400
+        
+        # Parse datetime
+        try:
+            slot_datetime = datetime.fromisoformat(slot_datetime_str.replace('Z', ''))
+        except ValueError:
+            return jsonify({
+                'success': False,
+                'error': 'Invalid datetime format. Use ISO format: YYYY-MM-DDTHH:MM:SS'
+            }), 400
+        
+        # Get busy/available users
+        agent = create_agent(db.session)
+        result = agent.get_busy_users_for_slot(slot_datetime, duration_minutes)
+        
+        return jsonify({
+            'success': True,
+            'data': result
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
             'error': str(e)
         }), 500

@@ -48,7 +48,7 @@ class MeetingSchedulerAgent:
     2. Thu thập lịch sử booking và patterns
     3. Sử dụng OpenAI GPT để phân tích và đưa ra quyết định
     4. Giải ràng buộc đa đối tượng
-    5. Đề xuất top 3 slots với lý do chi tiết từ AI
+    5. Đề xuất top N slots với lý do chi tiết từ AI
     """
     
     def __init__(self, db_session, api_key: Optional[str] = None, model: Optional[str] = None):
@@ -291,7 +291,7 @@ class MeetingSchedulerAgent:
                 'users': user_summaries
             })
         
-        system_prompt = """Bạn là AI lập lịch họp. Phân tích và chấm điểm slots.
+        system_prompt = """Bạn là AI lập lịch họp. Phân tích và chấm điểm slots. Hãy nhớ lịch đó phải có thời gian bắt đầu(start_time) phải muộn hơn thời gian thực tế hiện tại ít nhất 2 tiếng.
         Chỉ trả về duy nhất 1 đối tượng JSON hợp lệ. Không được thêm bất kỳ JSON giải thích, văn bản hay markdown nào khác.
 
 Trả về JSON format BẮT BUỘC:
@@ -567,6 +567,8 @@ Chỉ trả về JSON. Lý do phải ngắn (max 15 từ)."""
         # 3. Tìm tất cả candidate slots
         print("Đang tìm kiếm slots khả thi...")
         candidate_slots = []
+        now = datetime.now()
+        min_start_time = now + timedelta(hours=2)  # Tối thiểu 2 tiếng sau thời điểm hiện tại
         today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
         
         for i in range(days_ahead):
@@ -576,6 +578,10 @@ Chỉ trả về JSON. Lý do phải ngắn (max 15 từ)."""
             for hour in range(WORKING_HOURS['start'], WORKING_HOURS['end']):
                 slot_start = current_date.replace(hour=hour, minute=0, second=0, microsecond=0)
                 slot_end = slot_start + timedelta(minutes=duration_minutes)
+                
+                # Bỏ qua nếu slot bắt đầu trước thời gian tối thiểu (hiện tại + 2 tiếng)
+                if slot_start < min_start_time:
+                    continue
                 
                 # Kiểm tra slot có đủ thời gian liên tục không
                 if not self._is_continuous_slot(grid, slot_start, slot_end):
@@ -756,151 +762,111 @@ Chỉ trả về JSON. Lý do phải ngắn (max 15 từ)."""
         
         return enriched
     
-    # ========================================================================
-    # 7. ONE-CLICK POLL - Tạo poll với GPT
-    # ========================================================================
-    
-    def create_smart_poll(self, meeting_title: str, duration_minutes: int = 60,
-                         constraints: Optional[Dict] = None,
-                         objectives: Optional[List[str]] = None,
-                         use_gpt: bool = True) -> Dict:
+    def get_busy_users_for_slot(self, slot_datetime: datetime, duration_minutes: int) -> Dict:
         """
-        TẠO POLL "1 CHẠM" với 3 khung giờ tốt nhất (Powered by GPT)
-        
-        Mặc định: đề xuất 3 slots tốt nhất dựa trên objective 'balanced'
+        Lấy danh sách người bận và rảnh cho một khung giờ cụ thể
         
         Args:
-            meeting_title: Tiêu đề meeting
-            duration_minutes: Độ dài meeting
-            constraints: Các ràng buộc
-            objectives: List objectives (deprecated - chỉ dùng 'balanced')
-            use_gpt: Có sử dụng GPT hay không
+            slot_datetime: Thời gian bắt đầu slot
+            duration_minutes: Độ dài meeting (phút)
             
         Returns:
-            Dict: Poll data với 3 options tốt nhất + AI reasoning
-        """
-        if constraints is None:
-            constraints = {}
-        
-        print(f"\n{'='*70}")
-        print(f"TẠO POLL THÔNG MINH (GPT Powered): {meeting_title}")
-        print(f"Thời lượng: {duration_minutes} phút")
-        print(f"{'='*70}\n")
-        
-        # Tìm top 3 slots với 'balanced' objective
-        slots = self.find_optimal_slots(
-            duration_minutes=duration_minutes,
-            constraints=constraints,
-            objective='balanced',
-            top_n=3,
-            use_gpt=use_gpt
-        )
-        
-        if not slots:
-            print("Không tìm thấy slots phù hợp!")
-            return {
-                'title': meeting_title,
-                'duration_minutes': duration_minutes,
-                'created_at': datetime.now().isoformat(),
-                'constraints': constraints,
-                'options': [],
-                'recommendation': 'Không tìm thấy khung giờ phù hợp. Vui lòng điều chỉnh constraints.'
+            Dict: {
+                'available_users': [{'id', 'username', 'club', 'is_mentor', 'attendance_rate'}],
+                'busy_users': [{'id', 'username', 'club', 'is_mentor', 'reason'}],
+                'total_users': int,
+                'available_count': int,
+                'busy_count': int
             }
-        
-        # Generate overall recommendation using GPT
-        recommendation = self._generate_gpt_recommendation(slots, meeting_title, constraints)
-        
-        poll_data = {
-            'title': meeting_title,
-            'duration_minutes': duration_minutes,
-            'created_at': datetime.now().isoformat(),
-            'constraints': constraints,
-            'options': slots,
-            'recommendation': recommendation,
-            'powered_by': 'OpenAI GPT'
-        }
-        
-        self._print_poll_summary(poll_data)
-        
-        return poll_data
-    
-    def _generate_gpt_recommendation(self, slots: List[Dict], 
-                                     meeting_title: str, 
-                                     constraints: Dict) -> str:
         """
-        Sử dụng GPT để tạo recommendation tổng quan cho poll
+        from app.models import User, UserAvailability
+        
+        # Lấy tất cả users
+        all_users = User.query.all()
+        all_user_ids = {u.id for u in all_users}
+        
+        # Build availability grid cho khoảng thời gian này
+        availabilities = self.get_all_user_availability()
+        grid = self.build_availability_grid(availabilities, days_ahead=30)
+        
+        # Lấy available users cho slot
+        slot_end = slot_datetime + timedelta(minutes=duration_minutes)
+        available_user_ids = self._get_available_users_for_slot(grid, slot_datetime, slot_end)
+        
+        # Tính busy users
+        busy_user_ids = all_user_ids - available_user_ids
+        
+        # Get detailed info cho available users
+        available_users = []
+        for uid in available_user_ids:
+            user = User.query.get(uid)
+            if user:
+                history = self.analyze_user_history(uid)
+                available_users.append({
+                    'id': uid,
+                    'username': user.username,
+                    'email': user.email,
+                    'club': user.club,
+                    'is_mentor': user.is_admin,
+                    'attendance_rate': round(history.get('attendance_rate', 0.7), 2)
+                })
+        
+        # Get detailed info cho busy users
+        busy_users = []
+        for uid in busy_user_ids:
+            user = User.query.get(uid)
+            if user:
+                # Tìm lý do bận
+                reason = self._get_busy_reason(uid, slot_datetime, slot_end, availabilities)
+                busy_users.append({
+                    'id': uid,
+                    'username': user.username,
+                    'email': user.email,
+                    'club': user.club,
+                    'is_mentor': user.is_admin,
+                    'reason': reason
+                })
+        
+        return {
+            'slot_start': slot_datetime.strftime('%Y-%m-%d %H:%M'),
+            'slot_end': slot_end.strftime('%H:%M'),
+            'duration_minutes': duration_minutes,
+            'available_users': sorted(available_users, key=lambda x: x['attendance_rate'], reverse=True),
+            'busy_users': sorted(busy_users, key=lambda x: x['username']),
+            'total_users': len(all_user_ids),
+            'available_count': len(available_user_ids),
+            'busy_count': len(busy_user_ids)
+        }
+    
+    def _get_busy_reason(self, user_id: int, start_time: datetime, 
+                        end_time: datetime, availabilities: List) -> str:
+        """
+        Tìm lý do tại sao user bận trong khung giờ này
         
         Args:
-            slots: List slots đề xuất
-            meeting_title: Tiêu đề cuộc họp
-            constraints: Các ràng buộc
+            user_id: ID của user
+            start_time: Thời gian bắt đầu
+            end_time: Thời gian kết thúc
+            availabilities: List UserAvailability
             
         Returns:
-            str: Recommendation message từ GPT
+            str: Lý do bận (ví dụ: "Đã đánh dấu bận 14:00-17:00")
         """
-        if not slots:
-            return "Không tìm thấy slot phù hợp. Vui lòng thử lại với constraints khác."
+        day_of_week = start_time.weekday()
+        start_hour = start_time.hour
+        end_hour = end_time.hour
         
-        try:
-            prompt = f"""Bạn là trợ lý AI chuyên lập lịch họp. Hãy tạo một recommendation ngắn gọn (2-3 câu) 
-cho cuộc họp "{meeting_title}" dựa trên 3 khung giờ sau:
-
-1. {slots[0]['start_time_str']} ({slots[0]['day_name']}) - {slots[0]['available_count']} người rảnh
-   GPT Score: {slots[0]['gpt_score_rounded']}/100
-   Lý do: {slots[0]['ai_reasoning']}
-
-2. {slots[1]['start_time_str']} ({slots[1]['day_name']}) - {slots[1]['available_count']} người rảnh
-   GPT Score: {slots[1]['gpt_score_rounded']}/100
-   Lý do: {slots[1]['ai_reasoning']}
-
-3. {slots[2]['start_time_str']} ({slots[2]['day_name']}) - {slots[2]['available_count']} người rảnh
-   GPT Score: {slots[2]['gpt_score_rounded']}/100
-   Lý do: {slots[2]['ai_reasoning']}
-
-Hãy đưa ra khuyến nghị ngắn gọn về slot nào tốt nhất và tại sao."""
-
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": "Bạn là trợ lý AI chuyên lập lịch họp. Trả lời ngắn gọn, súc tích."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.7,
-                max_tokens=200
-            )
-            
-            return response.choices[0].message.content.strip()
-            
-        except Exception as e:
-            print(f"Lỗi khi tạo recommendation: {e}")
-            best = slots[0]
-            return f"Khuyến nghị: {best['start_time_str']} ({best['day_name']}) - {best['available_count']} người rảnh, điểm {best['gpt_score_rounded']}/100"
-    
-    def _print_poll_summary(self, poll_data: Dict):
-        """In summary của poll ra console (GPT powered)"""
-        print(f"\n{'='*70}")
-        print(f"POLL TỰ ĐỘNG (GPT Powered): {poll_data['title']}")
-        print(f"{'='*70}")
+        # Tìm availability record của user trong khung giờ này
+        for av in availabilities:
+            if av.user_id == user_id and av.day_of_week == day_of_week and av.is_busy:
+                # Check overlap
+                if not (av.end_hour <= start_hour or av.start_hour >= end_hour):
+                    if av.recurring:
+                        return f"Đã đánh dấu bận {av.start_hour}:00-{av.end_hour}:00 (định kỳ)"
+                    else:
+                        return f"Đã đánh dấu bận {av.start_hour}:00-{av.end_hour}:00"
         
-        for i, option in enumerate(poll_data['options'], 1):
-            print(f"\nOption {i}: {option['start_time_str']} - {option['end_time_str']}")
-            print(f"   {option['day_name']}")
-            print(f"   Available: {option['available_count']} người")
-            print(f"   Mentors: {option['mentor_count']}")
-            print(f"   AI Score: {option['gpt_score_rounded']}/100")
-            print(f"   AI Reasoning: {option['ai_reasoning']}")
-            
-            # Top 5 users có attendance rate cao nhất
-            top_users = option['user_details'][:5]
-            print(f"   Top users:")
-            for user in top_users:
-                rate_percent = int(user['attendance_rate'] * 100)
-                mentor_badge = "[M]" if user['is_mentor'] else "   "
-                print(f"      {mentor_badge} {user['username']} ({user['club']}) - {rate_percent}% attendance")
-        
-        print(f"\nAI RECOMMENDATION:")
-        print(f"   {poll_data['recommendation']}")
-        print(f"\n{'='*70}\n")
+        return "Không rảnh trong khung giờ này"
 
 
 # ============================================================================

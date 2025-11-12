@@ -27,19 +27,6 @@
                 </div>
             </div>
         </div>
-        
-        <div class="col-md-6 mb-3">
-            <div class="card border-success h-100">
-                <div class="card-body text-center">
-                    <i class="bi bi-clipboard-check text-success" style="font-size: 3rem;"></i>
-                    <h4 class="mt-3">Tạo Poll Tự Động</h4>
-                    <p class="text-muted">Tạo poll "1 chạm" với 3 khung giờ tốt nhất</p>
-                    <button class="btn btn-success btn-lg" onclick="showPollCreatorModal()">
-                        <i class="bi bi-plus-circle"></i> Tạo Poll
-                    </button>
-                </div>
-            </div>
-        </div>
     </div>
 
     <!-- Features Overview -->
@@ -199,57 +186,6 @@
     </div>
 </div>
 
-<!-- Poll Creator Modal -->
-<div class="modal fade" id="pollCreatorModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header bg-success text-white">
-                <h5 class="modal-title"><i class="bi bi-clipboard-check"></i> Tạo Poll Tự Động</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <form id="pollCreatorForm">
-                    <div class="mb-3">
-                        <label class="form-label">Tiêu đề Meeting</label>
-                        <input type="text" class="form-control" id="pollMeetingTitle" required placeholder="Ví dụ: Weekly Team Sync">
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="form-label">Thời lượng (phút)</label>
-                        <select class="form-select" id="pollDuration">
-                            <option value="30">30 phút</option>
-                            <option value="60" selected>60 phút</option>
-                            <option value="90">90 phút</option>
-                            <option value="120">120 phút</option>
-                        </select>
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="form-label">Số người tối thiểu</label>
-                        <input type="number" class="form-control" id="pollMinAttendees" min="1" value="3">
-                    </div>
-
-                    <div class="alert alert-info">
-                        <i class="bi bi-info-circle"></i>
-                        <strong>Poll sẽ tự động đề xuất 3 khung giờ tốt nhất với 3 mục tiêu:</strong>
-                        <ul class="mb-0 mt-2">
-                            <li>Tối đa người tham dự</li>
-                            <li>Cân bằng các yếu tố</li>
-                            <li>Ưu tiên Mentor</li>
-                        </ul>
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
-                <button type="button" class="btn btn-success" onclick="createSmartPoll()">
-                    <i class="bi bi-magic"></i> Tạo Poll
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-
 <!-- Loading Overlay -->
 <div id="loadingOverlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999;">
     <div class="d-flex justify-content-center align-items-center h-100">
@@ -269,10 +205,6 @@
 // Show modals
 function showSlotFinderModal() {
     new bootstrap.Modal(document.getElementById('slotFinderModal')).show();
-}
-
-function showPollCreatorModal() {
-    new bootstrap.Modal(document.getElementById('pollCreatorModal')).show();
 }
 
 // Update objective help text
@@ -348,53 +280,6 @@ async function findOptimalSlots() {
     } catch (error) {
         console.error('Error:', error);
         alert('Không thể kết nối với AI Agent. Vui lòng thử lại!');
-    } finally {
-        document.getElementById('loadingOverlay').style.display = 'none';
-    }
-}
-
-// Create Smart Poll
-async function createSmartPoll() {
-    const title = document.getElementById('pollMeetingTitle').value;
-    const duration = document.getElementById('pollDuration').value;
-    const minAttendees = document.getElementById('pollMinAttendees').value;
-
-    if (!title) {
-        alert('Vui lòng nhập tiêu đề meeting!');
-        return;
-    }
-
-    // Show loading
-    document.getElementById('loadingOverlay').style.display = 'block';
-    
-    // Hide modal
-    bootstrap.Modal.getInstance(document.getElementById('pollCreatorModal')).hide();
-
-    try {
-        const response = await fetch('/api/agent/create-poll', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                meeting_title: title,
-                duration_minutes: parseInt(duration),
-                constraints: {
-                    min_attendees: parseInt(minAttendees)
-                }
-            })
-        });
-
-        const data = await response.json();
-        
-        if (data.success) {
-            displayPollResults(data.poll);
-        } else {
-            alert('Lỗi: ' + data.error);
-        }
-    } catch (error) {
-        console.error('Error:', error);
-        alert('Không thể tạo poll. Vui lòng thử lại!');
     } finally {
         document.getElementById('loadingOverlay').style.display = 'none';
     }
@@ -509,92 +394,10 @@ function displaySlotResults(slots, objective) {
                             <button class="btn btn-${rankBadge}" onclick="useThisSlot('${slot.start_time}', '${slot.end_time}')">
                                 <i class="bi bi-check-circle"></i> Chọn slot này
                             </button>
+                            <button class="btn btn-outline-${rankBadge}" onclick="showBusyUsers('${slot.start_time}', ${slot.available_count + (20 - slot.available_count)})">
+                                <i class="bi bi-person-x"></i> Xem danh sách người bận
+                            </button>
                         </div>
-                    </div>
-                </div>
-            </div>
-        `;
-    });
-
-    html += '</div>';
-
-    resultsContent.innerHTML = html;
-    resultsArea.style.display = 'block';
-    resultsArea.scrollIntoView({ behavior: 'smooth' });
-}
-
-// Display Poll Results
-function displayPollResults(poll) {
-    const resultsArea = document.getElementById('resultsArea');
-    const resultsContent = document.getElementById('resultsContent');
-
-    let html = `
-        <div class="alert alert-success">
-            <i class="bi bi-check-circle"></i>
-            <strong>Poll đã được tạo thành công!</strong>
-            <p class="mb-0 mt-2">${poll.title} - ${poll.duration_minutes} phút</p>
-        </div>
-
-        ${poll.recommendation ? `
-            <div class="alert alert-primary">
-                <i class="bi bi-lightbulb"></i>
-                <strong>Khuyến nghị:</strong>
-                <pre class="mb-0 mt-2" style="white-space: pre-wrap;">${poll.recommendation}</pre>
-            </div>
-        ` : ''}
-
-        <h5 class="mb-3"><i class="bi bi-clipboard-check"></i> 3 Lựa chọn được đề xuất:</h5>
-        
-        <div class="row">
-    `;
-
-    const objectiveColors = {
-        'max_attendance': 'primary',
-        'balanced': 'success',
-        'mentor_priority': 'info'
-    };
-
-    poll.options.forEach((option, index) => {
-        const color = objectiveColors[option.objective_type] || 'secondary';
-        
-        html += `
-            <div class="col-md-4 mb-3">
-                <div class="card border-${color} h-100">
-                    <div class="card-header bg-${color} text-white">
-                        <h6 class="mb-0">
-                            Option ${index + 1}
-                            <small class="d-block mt-1">${option.objective_type.replace('_', ' ')}</small>
-                        </h6>
-                    </div>
-                    <div class="card-body">
-                        <h5 class="text-${color}">
-                            <i class="bi bi-calendar-event"></i>
-                            ${option.start_time_str}
-                        </h5>
-                        <p class="text-muted">${option.day_name}</p>
-
-                        <div class="mb-3">
-                            <div class="d-flex justify-content-between mb-1">
-                                <small>Available:</small>
-                                <strong class="text-primary">${option.available_count}</strong>
-                            </div>
-                            <div class="d-flex justify-content-between mb-1">
-                                <small>Kỳ vọng:</small>
-                                <strong class="text-success">${option.expected_attendance || option.available_count}</strong>
-                            </div>
-                            <div class="d-flex justify-content-between mb-1">
-                                <small>Mentors:</small>
-                                <strong class="text-info">${option.mentor_count}</strong>
-                            </div>
-                            <div class="d-flex justify-content-between">
-                                <small>Score:</small>
-                                <strong>${option.score}</strong>
-                            </div>
-                        </div>
-
-                        <button class="btn btn-${color} btn-sm w-100" onclick="useThisSlot('${option.start_time}', '${option.end_time}')">
-                            <i class="bi bi-check"></i> Chọn
-                        </button>
                     </div>
                 </div>
             </div>
@@ -619,6 +422,175 @@ function useThisSlot(startTime, endTime) {
     url.searchParams.set('end', end.toISOString());
     
     window.location.href = url.toString();
+}
+
+// Show busy users for a specific slot
+async function showBusyUsers(slotDateTime, durationMinutes = 60) {
+    // Show loading
+    document.getElementById('loadingOverlay').style.display = 'block';
+
+    try {
+        const response = await fetch('/api/agent/busy-users', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                slot_datetime: slotDateTime,
+                duration_minutes: durationMinutes
+            })
+        });
+
+        const result = await response.json();
+        
+        if (result.success) {
+            displayBusyUsersModal(result.data);
+        } else {
+            alert('Lỗi: ' + result.error);
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Không thể tải thông tin. Vui lòng thử lại!');
+    } finally {
+        document.getElementById('loadingOverlay').style.display = 'none';
+    }
+}
+
+// Display busy users in a modal
+function displayBusyUsersModal(data) {
+    const modalHtml = `
+        <div class="modal fade" id="busyUsersModal" tabindex="-1">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header bg-primary text-white">
+                        <h5 class="modal-title">
+                            <i class="bi bi-clock"></i> ${data.slot_start} - ${data.slot_end}
+                        </h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <!-- Summary -->
+                        <div class="row mb-4">
+                            <div class="col-md-4">
+                                <div class="card bg-light text-center">
+                                    <div class="card-body">
+                                        <h2 class="mb-0">${data.total_users}</h2>
+                                        <small class="text-muted">Tổng số người</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="card bg-success text-white text-center">
+                                    <div class="card-body">
+                                        <h2 class="mb-0">${data.available_count}</h2>
+                                        <small>Rảnh</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="card bg-danger text-white text-center">
+                                    <div class="card-body">
+                                        <h2 class="mb-0">${data.busy_count}</h2>
+                                        <small>Bận</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Tabs -->
+                        <ul class="nav nav-tabs mb-3" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active" id="available-tab" data-bs-toggle="tab" 
+                                        data-bs-target="#available-panel" type="button">
+                                    <i class="bi bi-check-circle text-success"></i> 
+                                    Rảnh (${data.available_count})
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="busy-tab" data-bs-toggle="tab" 
+                                        data-bs-target="#busy-panel" type="button">
+                                    <i class="bi bi-x-circle text-danger"></i> 
+                                    Bận (${data.busy_count})
+                                </button>
+                            </li>
+                        </ul>
+
+                        <div class="tab-content">
+                            <!-- Available Users Tab -->
+                            <div class="tab-pane fade show active" id="available-panel">
+                                <div class="list-group">
+                                    ${data.available_users.map(user => `
+                                        <div class="list-group-item">
+                                            <div class="d-flex justify-content-between align-items-center">
+                                                <div>
+                                                    ${user.is_mentor ? 
+                                                        '<i class="bi bi-mortarboard-fill text-primary"></i>' : 
+                                                        '<i class="bi bi-person"></i>'
+                                                    }
+                                                    <strong>${user.username}</strong>
+                                                    <span class="badge bg-secondary ms-2">${user.club}</span>
+                                                </div>
+                                                <div>
+                                                    <span class="badge bg-success">
+                                                        ${Math.round(user.attendance_rate * 100)}% attendance
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+
+                            <!-- Busy Users Tab -->
+                            <div class="tab-pane fade" id="busy-panel">
+                                <div class="list-group">
+                                    ${data.busy_users.map(user => `
+                                        <div class="list-group-item">
+                                            <div class="d-flex justify-content-between align-items-start">
+                                                <div>
+                                                    ${user.is_mentor ? 
+                                                        '<i class="bi bi-mortarboard-fill text-primary"></i>' : 
+                                                        '<i class="bi bi-person"></i>'
+                                                    }
+                                                    <strong>${user.username}</strong>
+                                                    <span class="badge bg-secondary ms-2">${user.club}</span>
+                                                    <br>
+                                                    <small class="text-muted">
+                                                        <i class="bi bi-info-circle"></i> ${user.reason}
+                                                    </small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    // Remove old modal if exists
+    const oldModal = document.getElementById('busyUsersModal');
+    if (oldModal) {
+        oldModal.remove();
+    }
+
+    // Add new modal to body
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+    // Show modal
+    const modal = new bootstrap.Modal(document.getElementById('busyUsersModal'));
+    modal.show();
+
+    // Remove modal from DOM when hidden
+    document.getElementById('busyUsersModal').addEventListener('hidden.bs.modal', function () {
+        this.remove();
+    });
 }
 </script>
 {% endblock %}
