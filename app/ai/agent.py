@@ -634,12 +634,6 @@ Chỉ trả về JSON. Lý do phải ngắn (max 15 từ)."""
             )
             # Sắp xếp theo GPT score
             sorted_slots = sorted(candidate_slots, key=lambda x: x.get('gpt_score', 0), reverse=True)
-        # else:
-        #     # Fallback: sắp xếp theo basic score
-        #     sorted_slots = sorted(candidate_slots, key=lambda x: x['basic_score'], reverse=True)
-        #     for slot in sorted_slots:
-        #         slot['gpt_score'] = slot['basic_score']
-        #         slot['gpt_reasoning'] = 'Basic scoring (GPT disabled)'
         
         # 5. Lấy top N
         top_slots = sorted_slots[:top_n]
