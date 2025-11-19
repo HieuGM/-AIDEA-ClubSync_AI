@@ -364,16 +364,10 @@ function displaySlotResults(slots, objective) {
                         </p>
 
                         <div class="row mb-3">
-                            <div class="col-6">
-                                <div class="text-center p-2 bg-light rounded">
+                            <div class="col-12">
+                                <div class="text-center p-3 bg-light rounded">
                                     <h3 class="mb-0 text-primary">${slot.available_count}</h3>
                                     <small class="text-muted">Người available</small>
-                                </div>
-                            </div>
-                            <div class="col-6">
-                                <div class="text-center p-2 bg-light rounded">
-                                    <h3 class="mb-0 text-success">${slot.expected_attendance || slot.available_count}</h3>
-                                    <small class="text-muted">Kỳ vọng tham dự</small>
                                 </div>
                             </div>
                         </div>
@@ -394,7 +388,6 @@ function displaySlotResults(slots, objective) {
                                     ${user.is_mentor ? '<i class="bi bi-mortarboard-fill text-primary"></i>' : '<i class="bi bi-person"></i>'}
                                     <strong>${user.username}</strong>
                                     <span class="badge bg-secondary">${user.club}</span>
-                                    <span class="ms-2 text-success">${Math.round(user.attendance_rate * 100)}%</span>
                                 </li>
                             `).join('')}
                             ${slot.user_details.length > 5 ? `
@@ -554,11 +547,6 @@ function displayBusyUsersModal(data) {
                                                     }
                                                     <strong>${user.username}</strong>
                                                     <span class="badge bg-secondary ms-2">${user.club}</span>
-                                                </div>
-                                                <div>
-                                                    <span class="badge bg-success">
-                                                        ${Math.round(user.attendance_rate * 100)}% attendance
-                                                    </span>
                                                 </div>
                                             </div>
                                         </div>
