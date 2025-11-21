@@ -426,20 +426,34 @@ function displaySlotResults(slots, objective) {
 
 // Use selected slot - redirect to booking form
 function useThisSlot(startTime, endTime) {
-    // Format datetime to local datetime-local format (YYYY-MM-DDTHH:mm)
     const start = new Date(startTime);
     const end = new Date(endTime);
+
+    const startStr = formatDateTimeLocal(start);
+    const endStr = formatDateTimeLocal(end);
     
-    // Convert to local datetime string format for datetime-local input
-    const startStr = start.toISOString().slice(0, 16);
-    const endStr = end.toISOString().slice(0, 16);
+    console.log('[DEBUG] useThisSlot:', {
+        original_start: startTime,
+        original_end: endTime,
+        formatted_start: startStr,
+        formatted_end: endStr
+    });
     
-    // Redirect to booking form with pre-filled times
     const url = new URL('{{ url_for("booking.create") }}', window.location.origin);
     url.searchParams.set('start', startStr);
     url.searchParams.set('end', endStr);
     
     window.location.href = url.toString();
+}
+
+// Helper function to format datetime to local datetime-local format
+function formatDateTimeLocal(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
 }
 
 // Show busy users for a specific slot

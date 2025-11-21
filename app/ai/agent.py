@@ -7,9 +7,8 @@ import os
 from openai import OpenAI
 
 WORKING_HOURS = {'start': 7, 'end': 22}  # 7h sáng - 10h tối
-DAYS_OF_WEEK = 7  # 0=Monday, 6=Sunday
+DAYS_OF_WEEK = 7
 
-# Trọng số cho các yếu tố scoring
 WEIGHTS = {
     'attendance_count': 3.0,      # Số người tham dự
     'attendance_probability': 2.5, # Xác suất tham dự cao
