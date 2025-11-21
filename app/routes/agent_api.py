@@ -1,7 +1,3 @@
-"""
-API Routes cho AI Agent
-"""
-
 from flask import Blueprint, jsonify, request
 from flask_login import login_required, current_user
 from app.ai.agent import create_agent
@@ -10,13 +6,11 @@ from datetime import datetime
 
 bp = Blueprint('agent', __name__)
 
-
 @bp.route('/suggest-slots', methods=['POST'])
 @login_required
 def suggest_slots():
     """
     API để tìm và đề xuất slots tối ưu
-    
     Request JSON:
     {
         "duration_minutes": 60,
@@ -127,7 +121,6 @@ def health_check():
 def get_busy_users():
     """
     API để xem ai rảnh và ai bận cho một khung giờ cụ thể
-    
     Request JSON:
     {
         "slot_datetime": "2025-11-13T14:00:00",

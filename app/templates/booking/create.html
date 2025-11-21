@@ -165,13 +165,18 @@ document.addEventListener('DOMContentLoaded', function() {
             end: endTime.value
         });
         
+        // Gửi datetime dạng local (không convert UTC) để match với DB
         const params = new URLSearchParams({
             room_id: roomSelect.value,
-            start: new Date(startTime.value).toISOString(),
-            end: new Date(endTime.value).toISOString()
+            start: startTime.value,  // Format: YYYY-MM-DDTHH:mm
+            end: endTime.value
         });
         
-        console.log('[DEBUG] Request URL:', `{{ url_for("api.check_availability") }}?${params}`);
+        console.log('[DEBUG] Request params:', {
+            room_id: roomSelect.value,
+            start: startTime.value,
+            end: endTime.value
+        });
         
         fetch(`{{ url_for("api.check_availability") }}?${params}`)
             .then(response => response.json())

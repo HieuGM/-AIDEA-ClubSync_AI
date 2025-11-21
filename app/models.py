@@ -88,7 +88,7 @@ class UserAvailability(db.Model):
     start_hour = db.Column(db.Integer, nullable=False)   # 0-23
     end_hour = db.Column(db.Integer, nullable=False)     # 0-23
     is_busy = db.Column(db.Boolean, default=False)       # True=busy, False=available
-    recurring = db.Column(db.Boolean, default=True)      # Weekly recurring
+    recurring = db.Column(db.Boolean, default=True)     
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     def __repr__(self):

@@ -24,17 +24,9 @@ WEIGHTS = {
 
 class MeetingSchedulerAgent:
     def __init__(self, db_session, api_key: Optional[str] = None, model: Optional[str] = None):
-        """
-        Khởi tạo Agent với database session và OpenAI client
-        
-        Args:
-            db_session: SQLAlchemy session để t ruy vấn database
-            api_key: OpenAI API key (nếu None sẽ lấy từ config)
-            model: Model name (nếu None sẽ lấy từ config, mặc định gpt-4o-mini)
-        """
         self.db = db_session
         self.booking_history = []
-        # Khởi tạo NVIDIA client
+        
         from config import Config
 
         self.api_key = api_key or Config.AI_API_KEY 
@@ -43,21 +35,17 @@ class MeetingSchedulerAgent:
         if not self.api_key:
             raise ValueError("NVIDIA API key is required. Set NVIDIA_API_KEY in .env file")
  
-        # Khởi tạo client trỏ đến endpoint của NVIDIA
         self.client = OpenAI(
             base_url="https://integrate.api.nvidia.com/v1",
             api_key=self.api_key
         )
         print(f"NVIDIA Agent initialized with model: {self.model}")
         
-    # 1. DATA COLLECTION - Lấy dữ liệu từ Database
+    # 1. Lấy dữ liệu từ Database
     
     def get_all_user_availability(self) -> List:
         """
         Lấy lịch bận của TẤT CẢ users trong database
-        
-        Returns:
-            List[UserAvailability]: Danh sách tất cả availability records
         """
         from app.models import UserAvailability
         return UserAvailability.query.all()
@@ -65,12 +53,6 @@ class MeetingSchedulerAgent:
     def get_all_users(self, club_filter: Optional[str]) -> List:
         """
         Lấy danh sách users, có thể filter theo club
-        
-        Args:
-            club_filter: Tên club để filter (Pro/Multi/GCC), None = tất cả
-            
-        Returns:
-            List[User]: Danh sách users
         """
         from app.models import User
         query = User.query
@@ -81,12 +63,6 @@ class MeetingSchedulerAgent:
     def get_booking_history(self, days_back: int = 90) -> List:
         """
         Lấy lịch sử booking để học pattern
-        
-        Args:
-            days_back: Số ngày quá khứ để lấy lịch sử
-            
-        Returns:
-            List[Booking]: Danh sách bookings
         """
         from app.models import Booking
         cutoff_date = datetime.utcnow() - timedelta(days=days_back)
@@ -97,17 +73,11 @@ class MeetingSchedulerAgent:
         self.booking_history = bookings
         return bookings
     
-    # 2. DATA ANALYSIS - Phân tích dữ liệu user và lịch sử
+    # 2. Phân tích dữ liệu user và lịch sử
 
     def analyze_user_history(self, user_id: int) -> Dict:
         """
         Phân tích lịch sử booking của user để tạo summary
-        
-        Args:
-            user_id: ID của user cần phân tích
-            
-        Returns:
-            Dict: Summary data của user
         """
         from app.models import Booking, User
         
@@ -124,18 +94,16 @@ class MeetingSchedulerAgent:
                 'club': user.club,
                 'is_mentor': user.is_admin,
                 'total_bookings': 0,
-                'attendance_rate': 0.7  # Default
+                'attendance_rate': 0.7 
             }
         
-        # Phân tích patterns
         hour_counts = Counter()
         day_counts = Counter()
         
         for booking in user_bookings:
             hour_counts[booking.start_time.hour] += 1
             day_counts[booking.start_time.weekday()] += 1
-        
-        # Tính attendance rate
+
         total = Booking.query.filter_by(user_id=user_id).count()
         confirmed = Booking.query.filter_by(user_id=user_id, status='confirmed').count()
         attendance_rate = confirmed / total if total > 0 else 0.7
@@ -151,24 +119,11 @@ class MeetingSchedulerAgent:
             'attendance_rate': attendance_rate
         }
         
-    # 3. AVAILABILITY ANALYSIS - Phân tích lịch rảnh/bận
+    # 3. Phân tích lịch rảnh/bận
     
     def build_availability_grid(self, availabilities: List, days_ahead: int) -> Dict:
         """
-        Xây dựng lưới thời gian biểu chi tiết
-        
-        Cấu trúc: grid[date_str][hour] = {
-            'busy_users': set(user_ids),
-            'available_users': set(user_ids),
-            'total_users': int
-        }
-        
-        Args:
-            availabilities: List UserAvailability từ DB
-            days_ahead: Số ngày trong tương lai để xét
-            
-        Returns:
-            Dict: Lưới availability
+        Xây dựng lưới thời gian biểu
         """
         from app.models import User
         all_users = User.query.all()
@@ -207,20 +162,12 @@ class MeetingSchedulerAgent:
         
         return grid
     
-    # 4. OPENAI ANALYSIS - Sử dụng GPT để phân tích và đưa ra quyết định
+    # 4. Sử dụng AI để phân tích và đưa ra quyết định
     
     def ask_gpt_to_analyze_slots(self, candidate_slots: List[Dict], 
                                   constraints: Dict, objective: str) -> List[Dict]:
         """
-        Sử dụng OpenAI GPT để phân tích và chấm điểm các slots
-        
-        Args:
-            candidate_slots: Danh sách các slots khả thi
-            constraints: Các ràng buộc
-            objective: Mục tiêu (max_attendance, balanced, mentor_priority, fairness)
-            
-        Returns:
-            List[Dict]: Slots đã được GPT phân tích và chấm điểm
+        Sử dụng AI để phân tích và chấm điểm các slots
         """
         print(f"Đang sử dụng ({self.model}) để phân tích {len(candidate_slots)} slots...")
         
@@ -228,7 +175,6 @@ class MeetingSchedulerAgent:
         slots_summary = []
         for idx, slot in enumerate(candidate_slots[:max_slots_to_analyze]):
             user_summaries = []
-            # CHỈ lấy 10 users để giảm context size
             for uid in list(slot['available_users'])[:10]:
                 history = self.analyze_user_history(uid)
                 if history:
@@ -278,16 +224,13 @@ SLOTS (mỗi slot có: thời gian, số người rảnh, có mentor không):
 Chỉ trả về JSON. Lý do phải ngắn (max 15 từ)."""
         
         try:
-            # Llama-8B instruction trick: Nhắc lại format 1 lần nữa ở user prompt hoặc system prompt
-            # (Giả sử system_prompt của bạn đã có yêu cầu trả JSON)
-            
             response = self.client.chat.completions.create(
-                model=self.model, # nvidia/llama-3.1-8b-instruct...
+                model=self.model,
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt}
                 ],
-                temperature=0.2, # Llama nên để temp thấp hơn (0.2 - 0.4) để output format ổn định
+                temperature=0.2,
                 stream=False
             )
             
@@ -299,32 +242,21 @@ Chỉ trả về JSON. Lý do phải ngắn (max 15 từ)."""
             if finish_reason == "length":
                 print(f"WARNING: Response bị truncate! Chuyển sang fallback.")
                 raise ValueError("Response truncated")
-
-            # --- XỬ LÝ OUTPUT CỦA LLAMA ---
-            # Llama 8B rất hay trả về dạng: "Here is the json:\n ```json\n{...}\n```"
-            # Cách an toàn nhất là dùng Regex tìm khối ngoặc nhọn {} bao ngoài cùng.
             
             json_match = re.search(r'\{[\s\S]*\}', response_text)
             
             if json_match:
                 clean_json_str = json_match.group(0)
             else:
-                # Trường hợp Llama không trả về JSON hoặc format quá lạ
                 print(f"Raw response không chứa JSON hợp lệ: {response_text[:100]}...")
                 raise ValueError("No JSON found in response")
 
             result = json.loads(clean_json_str)
             print(f"Analysis: {result.get('analysis', 'Done')}")
             
-            # --- SỬA LỖI LOGIC NGHIÊM TRỌNG (CRITICAL FIX) ---
-            # Tạo map {index_gpt: data} để tra cứu O(1)
             slot_scores_map = {item.get('index'): item for item in result.get('slots', [])}
-            
-            # Dùng enumerate để lấy đúng vị trí i, KHÔNG dùng .index(slot)
             for idx, slot in enumerate(candidate_slots[:max_slots_to_analyze]):
-                
-                # Tìm xem GPT/Llama có trả về kết quả cho index này không
-                gpt_data = slot_scores_map.get(idx) # Trả về None nếu không tìm thấy
+                gpt_data = slot_scores_map.get(idx) 
                 
                 if gpt_data:
                     slot['gpt_score'] = gpt_data.get('score', 50)
@@ -338,7 +270,6 @@ Chỉ trả về JSON. Lý do phải ngắn (max 15 từ)."""
         except (json.JSONDecodeError, ValueError, Exception) as e:
             print(f"Lỗi xử lý Llama ({type(e).__name__}): {e}")
             
-            # Fallback logic
             print("Sử dụng fallback scoring...")
             for slot in candidate_slots:
                 slot['gpt_score'] = min(slot['available_count'] * 10, 100)
@@ -346,13 +277,12 @@ Chỉ trả về JSON. Lý do phải ngắn (max 15 từ)."""
                 
             return candidate_slots
     
-    # 5. CONSTRAINT SOLVING - Giải ràng buộc đa đối tượng
+    # 5. Giải ràng buộc đa đối tượng
     
     def check_constraints(self, slot_datetime: datetime, duration_minutes: int,
                          available_users: Set[int], constraints: Dict) -> Tuple[bool, Dict]:
         """
         Kiểm tra tất cả constraints cho một slot
-        
         Constraints có thể bao gồm:
         - required_members: List user IDs bắt buộc phải có
         - required_mentors: List mentor IDs (users có quyền admin hoặc role mentor)
@@ -361,15 +291,6 @@ Chỉ trả về JSON. Lý do phải ngắn (max 15 từ)."""
         - preferred_members: List user IDs ưu tiên
         - club_filter: Chỉ members từ club cụ thể
         - time_constraints: Giới hạn khung giờ
-        
-        Args:
-            slot_datetime: Thời điểm bắt đầu slot
-            duration_minutes: Độ dài meeting
-            available_users: Set user IDs available tại slot này
-            constraints: Dict các ràng buộc
-            
-        Returns:
-            Tuple[bool, Dict]: (is_valid, violation_details)
         """
         violations = {}
         
@@ -400,8 +321,6 @@ Chỉ trả về JSON. Lý do phải ngắn (max 15 từ)."""
         if time_constraints:
             earliest = time_constraints.get('earliest_hour', WORKING_HOURS['start'])
             latest = time_constraints.get('latest_hour', WORKING_HOURS['end'])
-            
-            # Slot phải bắt đầu và KẾT THÚC trong khung giờ cho phép
             slot_end = slot_datetime + timedelta(minutes=duration_minutes)
             slot_end_hour = slot_end.hour + (1 if slot_end.minute > 0 else 0)  # Round up
             
@@ -430,14 +349,13 @@ Chỉ trả về JSON. Lý do phải ngắn (max 15 từ)."""
         is_valid = len(violations) == 0
         return is_valid, violations
     
-    # 5. SLOT SCORING - Chấm điểm cơ bản
+    # 5. Chấm điểm cơ bản
     
     def score_slot(self, slot_datetime: datetime, duration_minutes: int,
                    available_users: Set[int], constraints: Dict, 
                    objective: str = 'max_attendance') -> float:
         """
-        Chấm điểm cơ bản một slot (sẽ được GPT refine sau)
-        
+        Chấm điểm cơ bản một slot (sẽ được AI refine sau)
         Args:
             slot_datetime: Thời điểm slot
             duration_minutes: Độ dài meeting
@@ -464,18 +382,17 @@ Chỉ trả về JSON. Lý do phải ngắn (max 15 từ)."""
             # Ưu tiên slot vừa đủ (không quá đông, không quá vắng)
             ideal_size = constraints.get('min_attendees', 3) + 2
             diff = abs(len(available_users) - ideal_size)
-            score += max(50 - diff * 5, 0) # Càng gần ideal càng cao
+            score += max(50 - diff * 5, 0)
         
         # Bonus cho time slots hợp lý
         hour = slot_datetime.hour
         if 9 <= hour <= 11 or 14 <= hour <= 16:
             score += 20
-        elif 8 <= hour <= 18: # Giờ hành chính thường
+        elif 8 <= hour <= 18: 
             score += 10
-        else: # Ngoài giờ
+        else: 
             score -= 10
         
-        # Bonus cho ngày trong tuần
         day = slot_datetime.weekday()
         if day < 4:  # Thứ 2 - Thứ 5: Ưu tiên cao
             score += 15
@@ -486,7 +403,7 @@ Chỉ trả về JSON. Lý do phải ngắn (max 15 từ)."""
     
         return score
     
-    # 6. MAIN ALGORITHM - Tìm top slots với AI
+    # Tìm top slots với AI
     
     def find_optimal_slots(self, duration_minutes: int = 60,
                           constraints: Optional[Dict] = None,
@@ -502,7 +419,7 @@ Chỉ trả về JSON. Lý do phải ngắn (max 15 từ)."""
         2. Phân tích lịch sử bookings
         3. Build lưới availability
         4. Tìm tất cả slots khả thi
-        5. SỬ DỤNG GPT để phân tích và chấm điểm thông minh
+        5. SỬ DỤNG AI để phân tích và chấm điểm thông minh
         6. Trả về top N slots với reasoning từ AI
         
         Args:
@@ -614,14 +531,6 @@ Chỉ trả về JSON. Lý do phải ngắn (max 15 từ)."""
     def _is_continuous_slot(self, grid: Dict, start_time: datetime, end_time: datetime) -> bool:
         """
         Kiểm tra slot có liên tục (không bị gián đoạn) không
-        
-        Args:
-            grid: Availability grid
-            start_time: Thời điểm bắt đầu
-            end_time: Thời điểm kết thúc
-            
-        Returns:
-            bool: True nếu continuous
         """
         current = start_time
         while current < end_time:
@@ -642,16 +551,8 @@ Chỉ trả về JSON. Lý do phải ngắn (max 15 từ)."""
                                      end_time: datetime) -> Set[int]:
         """
         Lấy set users available trong TOÀN BỘ khoảng thời gian của slot
-        
-        Args:
-            grid: Availability grid
-            start_time: Thời điểm bắt đầu
-            end_time: Thời điểm kết thúc
-            
-        Returns:
-            Set[int]: User IDs available
         """
-        available_users = None  # Sẽ là intersection của tất cả giờ
+        available_users = None
         
         current = start_time
         while current < end_time:
@@ -664,7 +565,7 @@ Chỉ trả về JSON. Lý do phải ngắn (max 15 từ)."""
                 if available_users is None:
                     available_users = hour_available.copy()
                 else:
-                    available_users &= hour_available  # Intersection
+                    available_users &= hour_available
             
             current += timedelta(hours=1)
         
@@ -673,18 +574,11 @@ Chỉ trả về JSON. Lý do phải ngắn (max 15 từ)."""
     def _enrich_slot_info(self, slots: List[Dict]) -> List[Dict]:
         """
         Làm giàu thông tin slots để dễ hiển thị cho user
-        
-        Args:
-            slots: List slots cần enrich
-            
-        Returns:
-            List[Dict]: Slots đã được enrich với GPT reasoning
         """
         from app.models import User, Booking
         
         enriched = []
         for slot in slots:
-            # Get user details - Dùng available_count gốc từ lúc tạo slot
             actual_available_count = slot.get('available_count', len(slot.get('available_users', [])))
             
             user_details = []
@@ -698,7 +592,6 @@ Chỉ trả về JSON. Lý do phải ngắn (max 15 từ)."""
                         'is_mentor': user.is_admin
                     })
             
-            # Format datetime
             start_str = slot['start_time'].strftime('%Y-%m-%d %H:%M')
             end_str = slot['end_time'].strftime('%H:%M')
             day_names = ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ nhật']
@@ -721,19 +614,6 @@ Chỉ trả về JSON. Lý do phải ngắn (max 15 từ)."""
     def get_busy_users_for_slot(self, slot_datetime: datetime, duration_minutes: int) -> Dict:
         """
         Lấy danh sách người bận và rảnh cho một khung giờ cụ thể
-        
-        Args:
-            slot_datetime: Thời gian bắt đầu slot
-            duration_minutes: Độ dài meeting (phút)
-            
-        Returns:
-            Dict: {
-                'available_users': [{'id', 'username', 'club', 'is_mentor', 'attendance_rate'}],
-                'busy_users': [{'id', 'username', 'club', 'is_mentor', 'reason'}],
-                'total_users': int,
-                'available_count': int,
-                'busy_count': int
-            }
         """
         from app.models import User, UserAvailability
         
@@ -770,7 +650,6 @@ Chỉ trả về JSON. Lý do phải ngắn (max 15 từ)."""
         for uid in busy_user_ids:
             user = User.query.get(uid)
             if user:
-                # Tìm lý do bận
                 reason = self._get_busy_reason(uid, slot_datetime, slot_end, availabilities)
                 busy_users.append({
                     'id': uid,
@@ -796,15 +675,6 @@ Chỉ trả về JSON. Lý do phải ngắn (max 15 từ)."""
                         end_time: datetime, availabilities: List) -> str:
         """
         Tìm lý do tại sao user bận trong khung giờ này
-        
-        Args:
-            user_id: ID của user
-            start_time: Thời gian bắt đầu
-            end_time: Thời gian kết thúc
-            availabilities: List UserAvailability
-            
-        Returns:
-            str: Lý do bận (ví dụ: "Đã đánh dấu bận 14:00-17:00")
         """
         day_of_week = start_time.weekday()
         start_hour = start_time.hour
@@ -830,12 +700,9 @@ def create_agent(db_session=None, api_key=None, model=None):
     Factory function để tạo agent instance với OpenAI
     
     Args:
-        db_session: SQLAlchemy session (optional, sẽ dùng current nếu None)
-        api_key: OpenAI API key (optional, sẽ lấy từ config nếu None)
-        model: Model name (optional, default gpt-4o-mini)
-        
-    Returns:
-        MeetingSchedulerAgent: Agent instance powered by OpenAI
+        db_session: SQLAlchemy session
+        api_key: NVIDIA key 
+        model: Model name
     """
     if db_session is None:
         from app.models import db

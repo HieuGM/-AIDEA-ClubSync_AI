@@ -14,4 +14,4 @@ class Config:
     AI_API_KEY = os.environ.get('AI_API_KEY')
     AI_MODEL = os.environ.get('AI_MODEL') or 'meta/llama3-8b-instruct'
     AI_TEMPERATURE = float(os.environ.get('AI_TEMPERATURE', '0.7'))
-    AI_MAX_TOKENS = int(os.environ.get('AI_MAX_TOKENS', '4000'))  # Tăng lên 4000
+    AI_MAX_TOKENS = int(os.environ.get('AI_MAX_TOKENS', '4000'))
